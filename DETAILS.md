@@ -90,7 +90,7 @@ The creature button in the menu shows your current creature, next to the name ot
 model you can turn around, its real size, its speed, its depth range, what it eats and what eats it.
 
 **Moving.** The mouse turns the view around your animal, and the keys steer relative to the view, as in most
-third-person games: `W` swims where you are looking, `S` swims back toward the camera, `A` and `D` go left and right.
+third-person games: `W` swims where you are looking, `S` swims back toward the camera. `A` and `D` go to the left and right of the view. The direction is taken from the camera all the time, so turning the camera while a key is held steers the creature with it.
 The body turns toward its heading as fast as that species can, and keeps its heading when you let go of the keys.
 The camera follows from behind and rises where rock is in the way. The mouse wheel moves it closer or further out;
 fully zoomed in, it sits just above the animal's back.
@@ -178,7 +178,7 @@ The limits are set to match each other (`source/src/bots.js`, `server/src/sea.js
 
 ## Detail levels
 
-The **Detail** row in the menu's **Graphics settings** panel picks the detail level; the current one is lit. Each level is the same world, built with less in it, and with fewer creatures around you (26, 20 or 14):
+The **Detail** row in the menu's **Graphics** panel picks the detail level; the current one is lit. Each level is the same world, built with less in it, and with fewer creatures around you (26, 20 or 14; the **Creatures** row of the World panel halves or doubles that):
 
 | Level | What it is | Picked on a first visit for |
 |---|---|---|
@@ -186,23 +186,40 @@ The **Detail** row in the menu's **Graphics settings** panel picks the detail le
 | **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | - |
 | **Low** | Every graphics setting at its least: the 80 m draw distance, a quarter of the leaves, the smallest shadow map, no anti-aliasing, no light rays, no creature shadows; coarser rocks and corals, 480p to start with | Phones, and computers with 4 GB of memory or less |
 
-If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, water and sound settings for the next visit.
+If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, world and sound settings for the next visit.
 
 ## Graphics settings
 
-The **Graphics settings** panel in the menu overrides what the detail level chose: draw distance (80 / 105 / 135 m),
+The **Graphics** panel in the menu overrides what the detail level chose: draw distance (80 / 105 / 135 m),
 resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow map size, anti-aliasing, light rays
 and creature shadows. Choosing a detail level resets them. The settings take effect after a reload: when you leave the
-panel with changes, the game asks whether to apply them and reload, discard them or keep editing. They are
+panel with changes, the game asks whether to apply them and reload, discard them or keep editing. After that
+reload you are where you were, not at home: the world is built around the same spot with the same view, and your
+creature and its health come back when you dive (`sessionStorage.abyssalAt`, `back` in `source/src/main.js`). They are
 stored in `localStorage.abyssalGfx` (see `source/src/quality.js`).
 
 The draw distance is a single number for everything: the water's haze closes in at that distance, and every draw
 limit and fade sits behind it. While tiles ahead are still being generated, the haze is pulled in to what is already
 loaded, so nothing pops into view.
 
+## World settings
+
+The **World** panel in the menu, between Graphics and Sound, holds what the sea itself is like. Like the graphics
+settings, its choices are compiled into the shaders and the world's buffers, so leaving the panel with changes asks
+whether to apply them and reload (going from Graphics to World and back does not ask). They are stored in
+`localStorage.abyssalWater` and `localStorage.abyssalWorld` ("creatures,time,colours"; see `source/src/quality.js`).
+
+| Row | Choices | What it does |
+|---|---|---|
+| **Water** | Lagoon, Clear, Crystal | The haze: how green or blue the water is and how far you see (`WATERQ`) |
+| **Creatures** | Few, Medium, Many | Half as many, the usual number, or twice as many creatures around you (`POPK` scales `BOTN`, `BOTMIN` and each species' `near` in `bots.js`). With Few there is less to eat, so health drains half as fast: over fourteen minutes instead of seven |
+| **Time** | Morning, Noon, Evening, Night | Tints the sunlight, the water's own light and the sky seen through the surface (`DAYQ`: `sun`, `sky`, `win`). The sun does not move: the baked shadows and skylight stay as they are, only colour and brightness change. Night is deep blue with a moon where the sun was; the glowing plants and sparkles stand out |
+| **HUD** | Off, On | Hides or shows the sonar and the lines at the bottom left (the creature's name, its health and stamina bars, messages). It takes effect at once, with no reload (`HUD` in `quality.js`, `localStorage.abyssalHud`) |
+| **Colours** | Vivid, Natural | Vivid is the original palette with magenta carpets, violet sponges and turquoise leaves. Natural (`NAT`) swaps them for the greens, olives, rusts and ochres of a real sea, thins the algae on the rock and lays sand on the level ground. It also gives the light on things back some of the red the water took (`LITK`, from `DAYQ.nat` for each time of day, and `LITA`), so that sand looks like sand and rock is grey and brown rather than turquoise |
+
 ## Sound settings
 
-The **Sound settings** panel in the menu has five levels, each off / low / medium / high. Changes are heard right
+The **Sound** panel in the menu has five levels, each off / low / medium / high. Changes are heard right
 away. Until you set them, the volume and the water are low, the music and the sea life medium, the gurgling high:
 
 - the overall volume;
@@ -249,8 +266,9 @@ a **Joystick** instead: the left thumb is a stick to swim by - forward, back and
 out - and the right thumb turns the view. The **−** and **+** buttons beside the menu button move the camera further and
 nearer, and a short tap on the sonar changes its range. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
 `source/src/main.js`. On a first visit a phone starts at the Low detail level.
-| Detail level, water, graphics | **Graphics settings** in the menu (applying them reloads the page) |
-| Volume of water, music, sea life, gurgling | **Sound settings** in the menu |
+| Detail level, graphics | **Graphics** in the menu (applying them reloads the page) |
+| Water, number of creatures, time of day, colours | **World** in the menu (applying them reloads the page) |
+| Volume of water, music, sea life, gurgling | **Sound** in the menu |
 
 The seabed, cliffs and arches are solid: you glide along the rock instead of swimming into it, and you still fit through every tunnel and arch. You can swim through kelp, plants, corals, sponges, loose rocks, the floating boulders and the whale tail. The ship stops creatures at its timbers, but the free camera passes through it.
 
@@ -298,6 +316,6 @@ Some easy first tweaks:
 - **Swimming speed:** for the free camera, search for `26 : 7` in `main.js` (fast speed : normal speed); for a creature, `spd` in `CRIT` in `creatures.js`
 - **How much world is loaded:** `WIN` (tiles across the window, a power of two) and `TILE` in `math.js`
 - **What grows far from home:** the noise-driven rules in `gen.js` (`kelpDens`, `hot`, `zw`, the fish and manta dice)
-- **How many creatures there are:** `BOTN` in `bots.js`
+- **How many creatures there are:** `BOTN` in `bots.js` (and `POPK` in `quality.js` for the menu's three steps)
 
 `dev.html#offscreen` renders into a texture instead of the canvas and exposes `window.abyssal` (see `dev.js`) for automated tests.

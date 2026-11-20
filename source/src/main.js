@@ -128,6 +128,11 @@ for (const p of POSES) p[1] += await groundAt(p[0], p[2]);
 }
 startWorkers(POSES, flyPts);
 lookAt(...POSES[0]);
+// Settings were applied, which reloads the page: the world is built where the player was, not at home, with the
+// view as it was (back: the camera's place and angles, then the creature's species, place, angles and health; the
+// settings panels below save it, and the dive puts the creature back).
+let back = null; try { back = JSON.parse(sessionStorage.abyssalAt); sessionStorage.removeItem('abyssalAt'); } catch {}
+if (back && back.length > 4 && back.every(isFinite)) for (let i = 0; i < 5; i++) F[i] = back[i]; else back = null;
 moveWindow(F[CX], F[CZ]);
 {
   const all = nWanted, names = ['Sculpting the seabed…', 'Carving canyons…', 'Growing kelp…'];
@@ -506,42 +511,58 @@ const ui = (m) => {
   // focus the dive button so Enter works (delayed: it can't take focus while still hidden)
   if (m) { release(); setTimeout(() => menu && bDive.focus(), 100); fitMenu(); } else document.activeElement.blur();
 };
+let first = true;
 const go = () => {
-  meSync(); hudWho(); pickClose(); netConnect();
+  meSync();
+  // the first dive starts as key 1 does: the creature at the first viewpoint, heading the way it looks
+  if (first && !back) { lookAt(...POSES[0]); meWarp(); } first = false;
+  if (back && me && me.s === back[5]) { me.x = back[6]; me.y = back[7]; me.z = back[8]; me.yaw = me.ty = back[9]; me.pit = back[10]; meHP = back[11]; } back = null;
+  hudWho(); pickClose(); netConnect();
   sound(); ui(false); bDive.textContent = 'Resume';
   // phones: go fullscreen and ask for landscape; where that is refused the CSS rotation still applies
   if (mob) document.documentElement.requestFullscreen?.()?.then(() => screen.orientation.lock('landscape')).catch(() => 0);
   if (!mob) capture();
 };
 bDive.onclick = go; $('o').onclick = () => ui(true);
-// graphics panel: opens in place of the list of controls. Rows: detail level, water, then the settings of GFX.
-// Choices are only marked until the panel is left: the question asked then keeps them and reloads (they are compiled into the shaders and the
+// The graphics and the world panels: each opens in place of the list of controls. Their rows are one list of choices:
+// detail level, water, the settings of GFX, then those of WORLD (creatures, time of day, colours).
+// Choices are only marked until the panels are left: the question asked then keeps them and reloads (they are compiled into the shaders and the
 // world's buffers). Picking a detail level marks the settings that level comes with.
 {
-  const was = [2 - LV, WQ, ...GFX], pick = was.slice(), rows = [...$('y').querySelectorAll('p')];
+  const yr = [...$('y').querySelectorAll('p')], wr = [...document.querySelectorAll('#yw p:not(.h)')];
+  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(1), ...wr.slice(1)];
   const mark = () => { rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; })); };
   rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { pick[k] = i; if (!k) pick.splice(2, 7, ...gdef(2 - i)); mark(); }; }));
-  // the two settings buttons share a row; each opens its panel in place of the list of controls and closes it again
+  // the three settings buttons share a row; each opens its panel in place of the list of controls and closes it again
   const panel = (id) => {
-    const g = id === 'y' && $('y').hidden, s = id === 'ys' && $('ys').hidden, open = g || s;
-    $('y').hidden = !g; $('ys').hidden = !s; $('k').style.display = open ? 'none' : ''; $('f').style.display = open ? 'none' : ''; $('cr').style.display = open ? 'none' : '';
-    $('x').innerHTML = g ? BACK + 'Main menu' : 'Graphics settings'; $('xs').innerHTML = s ? BACK + 'Main menu' : 'Sound settings'; fitMenu();
+    const open = $(id).hidden;
+    PANELS.forEach(([p, b, name]) => { const on = open && p === id; $(p).hidden = !on; $(b).innerHTML = on ? BACK + 'Menu' : name; });
+    $('k').style.display = $('f').style.display = $('cr').style.display = open ? 'none' : ''; fitMenu();
   };
-  // Leaving the graphics panel with choices that were not applied (to the main menu, to the sound panel, or diving)
-  // asks first: apply and reload, drop them, or stay.
+  // Leaving the graphics and world panels with choices that were not applied (to the main menu, to the sound panel,
+  // or diving) asks first: apply and reload, drop them, or stay. Going from one of the two to the other does not.
   let after = null;
-  const leave = (then) => { if ($('y').hidden || pick.join() === was.join()) then(); else { after = then; $('u').hidden = false; $('ua').focus(); } };
+  const leave = (then) => { if (($('y').hidden && $('yw').hidden) || pick.join() === was.join()) then(); else { after = then; $('u').hidden = false; $('ua').focus(); } };
+  const sw = (id) => () => ($(id).hidden ? panel(id) : leave(() => panel(id)));
   $('ud').onclick = () => { $('u').hidden = true; pick.splice(0, pick.length, ...was); mark(); after(); };
   $('uk').onclick = () => { $('u').hidden = true; };
   $('ua').onclick = () => {
     if (pick[0] !== was[0] || pick[3] !== was[3]) keep('abyssal', 2 - pick[0]); // another level or resolution: the tuned resolution is forgotten
-    keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2).join()); location.reload();
+    keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2, 9).join()); keep('abyssalWorld', pick.slice(9).join());
+    try { sessionStorage.abyssalAt = JSON.stringify([F[CX], F[CY], F[CZ], F[YAW], F[PIT]].concat(me ? [me.s, me.x, me.y, me.z, me.yaw, me.pit, meHP] : [])); } catch {}
+    location.reload();
   };
-  $('x').onclick = () => leave(() => panel('y')); $('xs').onclick = () => leave(() => panel('ys')); bDive.onclick = () => leave(go);
+  $('x').onclick = sw('y'); $('xw').onclick = sw('yw'); $('xs').onclick = () => leave(() => panel('ys')); bDive.onclick = () => leave(go);
   // the sound panel: a choice is heard at once (audio.js)
   const srows = [...$('ys').querySelectorAll('p')], smark = () => srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === SND[k] ? 'on' : ''; }));
   srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { SND[k] = i; sound(); sndApply(); smark(); }; }));
   smark();
+  // the World panel's last row, HUD: the sonar and the lines at the bottom left, shown or hidden at once, with no
+  // reload (HUD in quality.js)
+  const hb = [...document.querySelectorAll('#yw p.h button')];
+  const hmark = () => { hb.forEach((b, i) => { b.className = i === HUD ? 'on' : ''; }); $('so').style.visibility = $('hu').style.visibility = HUD ? '' : 'hidden'; };
+  hb.forEach((b, i) => { b.onclick = () => { HUD = i; keep('abyssalHud', i); hmark(); }; });
+  hmark();
   mark();
 }
 // a phone's Controls row: taken at once, and the hint under it says how that way works

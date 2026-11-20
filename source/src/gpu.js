@@ -10,11 +10,13 @@ const canvas = $('c'), info = $('i'), body = document.body;
 // row and the touch hint, so its buttons are shrunk less.
 function fitMenu() {
   const m = $('m'), h1 = m.firstElementChild, a = $('a'), ft = $('f'); let f = 1; m.style.fontSize = '';
-  if (mob) h1.style.display = $('tc').style.display = $('h').style.display = $('y').hidden && $('ys').hidden && $('cp').hidden ? '' : 'none';
+  if (mob) h1.style.display = $('tc').style.display = $('h').style.display = $('y').hidden && $('yw').hidden && $('ys').hidden && $('cp').hidden ? '' : 'none';
   const fits = () => { const pad = m.clientHeight * 0.015, low = ft.style.display === 'none' ? m.clientHeight : ft.offsetTop; return (h1.offsetHeight ? h1 : a).offsetTop >= pad && a.offsetTop + a.offsetHeight <= low - pad && h1.offsetWidth <= m.clientWidth && a.scrollWidth <= m.clientWidth; };
   while (!fits() && f > 0.2) { f -= 0.03; m.style.fontSize = f + 'em'; }
 }
 fitMenu(); addEventListener('resize', fitMenu);
+// the menu's panels: [panel, the button that opens it, the button's words]
+const PANELS = [['y', 'x', 'Graphics'], ['yw', 'xw', 'World'], ['ys', 'xs', 'Sound']];
 // a phone held upright gets the page turned on its side (see template.html)
 const rot = matchMedia('(orientation:portrait) and (pointer:coarse)');
 // loading bar: each stage glides it to `to` (the share done) over ~`ms` on the compositor, so it moves while this

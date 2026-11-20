@@ -254,10 +254,15 @@ const S_G = SEA_WGSL + /*wgsl*/`
 struct G { vp: mat4x4f, sm: mat4x4f, cam: vec4f, right: vec4f, up: vec4f, fwd: vec4f, sun: vec4f, res: vec4f, mis: vec4f${CSN ? ', cs: array<vec4f, ' + CSN * 2 + '>' : ''} };
 const SIG = vec3f(${WATERQ.sig});
 const KD = vec3f(${WATERQ.kd});
-const WCOL = vec3f(${WATERQ.col});
+const DAYK = vec3f(${DAYQ.sky});
+const WCOL = vec3f(${WATERQ.col}) * DAYK;
 const KDZ = vec3f(.034, .023, .018);
-const PCOL = vec3f(.58, .66, .98);
-const SUNC = vec3f(1.7, 1.6, 1.45);
+const PCOL = vec3f(${NAT ? '.44, .66, .92' : '.58, .66, .98'}) * DAYK;
+const SUNT = vec3f(${DAYQ.sun}); const SUNC = vec3f(1.7, 1.6, 1.45) * SUNT;
+// the natural colours give the light on things back some of the red the water took and take out some green, so
+// that sand is sand-coloured and rock is grey and brown, not turquoise (LITK: the sun's light, set for each time of
+// day in DAYQ.nat; LITA: the water's)
+const LITK = vec3f(${NAT ? DAYQ.nat : '1., 1., 1.'}); const LITA = vec3f(${NAT ? '1.1, .62, .54' : '1., 1., 1.'});
 const TAU = 6.2831853;
 const LOW = ${LV > 1};
 fn sat(x: f32) -> f32 { return clamp(x, 0., 1.); }
@@ -345,12 +350,12 @@ fn caus2(p: vec3f, d: f32) -> f32 {
   let c = min(pow(textureSample(tW, sR, q / 4.1).r, 1.4) * 2.6 * (.45 + textureSample(tW, sR, turn(q) / 6.9 + .37).r * 1.3) * w.z, 2.6);
   return mix(c, .33, ss(35., 100., d));
 }
-fn sunE(y: f32, z: f32) -> vec3f { return SUNC * exp(kd(z) * (min(y, 0.) / g.sun.y)) * (.5 + .5 * sat(-y / 30.)); }
+fn sunE(y: f32, z: f32) -> vec3f { return SUNC * LITK * exp(kd(z) * (min(y, 0.) / g.sun.y)) * (.5 + .5 * sat(-y / 30.)); }
 // the skylight volume is 60 m tall and follows the sea floor like the voxel band; above and below it the edge layer holds
 fn vol(p: vec3f) -> vec4f { return textureSampleLevel(tV, sC, vec3f(p.x / ${SPAN}., clamp((p.y - gridBase(p.x)) / bandH(p.x), .0125, .9875), p.z / ${SPAN}.), 0.); }
 fn amb(p: vec3f, n: vec3f, sky: f32, z: f32) -> vec3f {
   let up = n.y * .5 + .5;
-  return mix(vec3f(${WATERQ.amb}), vec3f(.34, .56, .82), z) * exp(kd(z) * min(p.y, 0.) * 1.2) * (.3 + .7 * sky) * (.24 + .76 * up * up) * 1.3 * (.55 + .45 * sat(-p.y / 30.)) + vec3f(.003, .010, .016) * (1. + 4. * g.mis.w);
+  return mix(vec3f(${WATERQ.amb}), vec3f(.34, .56, .82), z) * DAYK * LITA * exp(kd(z) * min(p.y, 0.) * 1.2) * (.3 + .7 * sky) * (.24 + .76 * up * up) * 1.3 * (.55 + .45 * sat(-p.y / 30.)) + vec3f(.003, .010, .016) * (1. + 4. * g.mis.w);
 }
 fn zone(p: vec3f) -> f32 { return mix(g.sun.w, textureSampleLevel(tM, sC, p.xz / ${SPAN}., 0.).b, .2); }
 fn side(p: vec3f, n: vec3f, open: f32, z: f32) -> vec3f { return mix(WCOL, PCOL, z) * exp(kd(z) * min(p.y, 0.)) * open * (1. - abs(n.y)) * .7; }
@@ -431,16 +436,17 @@ fn tri(p: vec3f, n: vec3f, s: f32) -> TP {
     alb = mix(alb, mix(vec3f(.34, .07, .10), vec3f(.40, .25, .07), ss(.45, .6, A.c)) * (.5 + .8 * B.h), enc * .75);
     alb = mix(alb, vec3f(.50, .50, .46) * (.5 + .7 * C.h), ss(.60, .70, B.c * .6 + C.c * .5) * .5);
     let alg = ss(-.1, .6, n0.y) * ss(.3, .52, B.c * .55 + big * .5);
-    alb = mix(alb, vec3f(.035, .14, .07), alg * .8);
+    alb = mix(alb, vec3f(${NAT ? '.07, .10, .04' : '.035, .14, .07'}), alg * ${NAT ? '.35' : '.8'}); // (natural: thin olive algae, the rock shows through)
     alb *= (.22 + 1.3 * hgt) * mix(1., .62 + .76 * F.h, fk);
     sgro = -ss(.14, .0, sf) * (1. - abs(on.y)) * 1.2;
     if (mat == 0) {
-      alb = mix(alb, vec3f(.13, .15, .14) * (.55 + .6 * B.h), flt * gm.a * .7);
+${NAT ? `      alb = mix(alb, vec3f(.44, .28, .11) * (.7 + .5 * B.h) * (.85 + .3 * C.h), ss(.62, .92, n0.y) * ss(.30, .55, big * .6 + A.c * .5) * .85);
+` : ''}      alb = mix(alb, vec3f(.13, .15, .14) * (.55 + .6 * B.h), flt * gm.a * .7);
       alb = mix(alb, vec3f(.40, .34, .23) * (.7 + .5 * B.h) * (.85 + .3 * C.h) * mix(.3, 1., sat(-i.wp.y / 22.)), ss(.55, .9, n0.y) * gm.g); // pale sand towards the shore
       let mg = flt * sat(gm.r * 1.5 - .45 + (B.c - .5) * 1.6) * ss(.35, .6, A.h) * ss(-34., -40., i.wp.y);
-      alb = mix(alb, vec3f(.20, .02, .12) * (.4 + .9 * B.h), mg * .8);
+      alb = mix(alb, vec3f(${NAT ? '.15, .07, .03' : '.20, .02, .12'}) * (.4 + .9 * B.h), mg * .8);
       flu = mg * .35;
-      alb = mix(alb, alb * vec3f(.85, .8, 1.4) + vec3f(.015, .0, .05), gm.b * .8);
+      alb = mix(alb, alb * vec3f(${NAT ? '.9, 1., 1.1' : '.85, .8, 1.4'}) + vec3f(${NAT ? '.0, .01, .02' : '.015, .0, .05'}), gm.b * .8);
     }
   } else if (mat == 2) {
     // whale fluke: smooth pale stone with dark streaks running along its length
@@ -456,14 +462,14 @@ fn tri(p: vec3f, n: vec3f, s: f32) -> TP {
   } else if (mat == 4) {
     let hue = fract(sd * 7.31);
     alb = mix(vec3f(.60, .17, .08), vec3f(.64, .35, .10), fract(hue * 3.));
-    if (hue > .75) { alb = vec3f(.44, .18, .42); }
+    if (hue > .75) { alb = vec3f(${NAT ? '.50, .38, .14' : '.44, .18, .42'}); }
     alb *= (.45 + .75 * B.h) * (.7 + .3 * C.h);
     vao = i.ao * i.ao; gloss = .2; bump = 1.4; flu = .55;
   } else {
     let hue = fract(sd * 5.73);
-    alb = mix(vec3f(.80, .08, .10), vec3f(.90, .22, .40), fract(hue * 4.));
+    alb = mix(vec3f(.80, .08, .10), vec3f(${NAT ? '.86, .30, .16' : '.90, .22, .40'}), fract(hue * 4.));
     if (hue > .7) { alb = vec3f(.88, .42, .10); }
-    if (hue > .9) { alb = vec3f(.55, .22, .75); }
+    if (hue > .9) { alb = vec3f(${NAT ? '.84, .62, .30' : '.55, .22, .75'}); }
     alb *= (.4 + .8 * B.h) * (.5 + .9 * i.ao * i.ao);
     alb = mix(alb, vec3f(1., .75, .6), ss(.8, 1., i.ao) * .35);
     emi = alb * .01; flu = .75; gloss = .25; bump = 1.5;
@@ -505,7 +511,7 @@ fn pal(h: f32) -> vec3f {
   if (h < .3) { return vec3f(1., .62, .08); }
   if (h < .6) { return vec3f(.12, 1., .22); }
   if (h < .8) { return vec3f(.2, .85, 1.); }
-  return vec3f(1., .3, .8);
+  return vec3f(${NAT ? '1., .8, .5' : '1., .3, .8'});
 }
 @vertex fn vs(@builtin(vertex_index) vi: u32, i: LI) -> LO {
   var o: LO;
@@ -521,12 +527,12 @@ fn pal(h: f32) -> vec3f {
   switch ty {
     case 0 { col = mix(vec3f(.11, .125, .022), vec3f(.04, .10, .04), s1); col = mix(col, vec3f(.25, .17, .025), step(.72, s2)); pr = vec4f(.24, .9, 0., 0.); spc = pal(hsel * .72); shp = vec2f(.5, .32); wav = 1.9; }
     case 1 { col = vec3f(.10, .11, .035); pr = vec4f(0., .2, 0., 0.); shp = vec2f(.05, .1); wav = .3; fls = .3; }
-    case 2 { col = mix(vec3f(.05, .20, .16), vec3f(.12, .26, .22), s1); col = mix(col, vec3f(.30, .14, .24), step(.85, s2)); pr = vec4f(.05, 1.0, .25, 0.); spc = vec3f(.6, 1., .9); shp = vec2f(.45, .35); wav = 2.2; }
-    case 3 { col = mix(vec3f(.02, .05, .065), vec3f(.05, .03, .08), s1); col = mix(col, vec3f(.09, .03, .09), step(.8, s2)); pr = vec4f(.2, .85, .55, .02); spc = mix(vec3f(.5, .35, 1.), vec3f(.2, 1., .7), step(.6, hsel)); shp = vec2f(.7, .6); wav = 2.4; }
+    case 2 { col = mix(vec3f(${NAT ? '.06, .18, .07' : '.05, .20, .16'}), vec3f(${NAT ? '.13, .25, .10' : '.12, .26, .22'}), s1); col = mix(col, vec3f(${NAT ? '.24, .17, .05' : '.30, .14, .24'}), step(.85, s2)); pr = vec4f(.05, 1.0, .25, 0.); spc = vec3f(.6, 1., .9); shp = vec2f(.45, .35); wav = 2.2; }
+    case 3 { col = mix(vec3f(.02, .05, .065), vec3f(.05, .03, .08), s1); col = mix(col, vec3f(${NAT ? '.05, .07, .03' : '.09, .03, .09'}), step(.8, s2)); pr = vec4f(.2, .85, .55, .02); spc = mix(vec3f(${NAT ? '.9, .8, .4' : '.5, .35, 1.'}), vec3f(.2, 1., .7), step(.6, hsel)); shp = vec2f(.7, .6); wav = 2.4; }
     case 4 { col = mix(vec3f(.30, .15, .02), vec3f(.42, .25, .04), s1); pr = vec4f(.2, 1., .1, 0.); spc = vec3f(1., .85, .5); shp = vec2f(.5, .4); wav = 1.8; }
-    case 5 { col = mix(vec3f(.85, .05, .40), vec3f(.60, .10, .80), step(.7, s1)); col = mix(col, vec3f(.95, .25, .55), step(.75, s2)); pr = vec4f(.22, .8, 0., .30); spc = vec3f(1., .35, .8); shp = vec2f(.6, .6); fls = 2.; }
-    case 6 { col = mix(vec3f(.80, .16, .16), vec3f(.92, .36, .42), s1); pr = vec4f(.06, 1., 0., .10); spc = vec3f(1., .5, .5); shp = vec2f(.4, .3); wav = 2.; }
-    default { col = mix(vec3f(.05, .40, .36), vec3f(.10, .52, .58), s1); pr = vec4f(.1, .9, .2, .04); spc = vec3f(.3, 1., .9); shp = vec2f(.6, .5); }
+    case 5 { col = mix(vec3f(${NAT ? '.40, .10, .05' : '.85, .05, .40'}), vec3f(${NAT ? '.26, .20, .05' : '.60, .10, .80'}), step(.7, s1)); col = mix(col, vec3f(${NAT ? '.55, .20, .07' : '.95, .25, .55'}), step(.75, s2)); pr = vec4f(.22, .8, 0., ${NAT ? '.06' : '.30'}); spc = vec3f(${NAT ? '1., .7, .4' : '1., .35, .8'}); shp = vec2f(.6, .6); fls = 2.; }
+    case 6 { col = mix(vec3f(.80, .16, .16), vec3f(${NAT ? '.84, .36, .20' : '.92, .36, .42'}), s1); pr = vec4f(.06, 1., 0., .10); spc = vec3f(1., .5, .5); shp = vec2f(.4, .3); wav = 2.; }
+    default { col = mix(vec3f(${NAT ? '.06, .26, .10' : '.05, .40, .36'}), vec3f(${NAT ? '.15, .37, .14' : '.10, .52, .58'}), s1); pr = vec4f(.1, .9, .2, .04); spc = vec3f(${NAT ? '.5, 1., .6' : '.3, 1., .9'}); shp = vec2f(.6, .5); }
   }
   pr.x = step(hs(s1 * 91.7 + s2 * 37.1 + i.b.x), pr.x);
   let k = (i.c.w - .3) * 2.0 + sin(t * (.8 + s1) * fls + s2 * 40. + hA * .25) * .10 * fls;
@@ -887,11 +893,11 @@ struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f };
   let upk = sat(rr.y);
   let cl = textureSampleLevel(tW, sR, rr.xz / max(rr.y, .2) * .11 + vec2f(g.cam.w * .004, g.cam.w * .0015) + i.wp.xz * .0007, 3.).ba;
   let cloud = ss(.06, .2, cl.x + cl.y * .6) * ss(.15, .6, upk);
-  var skyc = mix(vec3f(.46, .82, 1.) * 1.3, vec3f(.15, .58, 1.) * 1.3, pow(upk, .7)) + vec3f(1., .9, .7) * pow(sd, 6.) * .22;
-  skyc = mix(skyc, vec3f(1.3, 1.3, 1.27), cloud * .4);
+  var skyc = mix(vec3f(.46, .82, 1.) * 1.3, vec3f(.15, .58, 1.) * 1.3, pow(upk, .7)) * vec3f(${DAYQ.win}) + vec3f(1., .9, .7) * SUNT * pow(sd, 6.) * .22;
+  skyc = mix(skyc, vec3f(1.3, 1.3, 1.27) * vec3f(${DAYQ.win}), cloud * .4);
   // the wave slopes tilt the view of it: bright and dark bands, and glints on the steepest of them
   let glint = pow(sat(length(s) * 1.5 - .5), 3.) * (.4 + 1.6 * pow(sd, 4.));
-  let sky = (skyc * clamp(1. + 3.8 * (s.x * .6 - s.y * .8), .25, 3.) + vec3f(1., .95, .85) * (pow(sd, 60.) * 1.3 + pow(sd, 500.) * 12. + glint) + vec3f(1., .97, .9) * rim * .3) * (1. - fr);
+  let sky = (skyc * clamp(1. + 3.8 * (s.x * .6 - s.y * .8), .25, 3.) + vec3f(1., .95, .85) * SUNT * (pow(sd, 60.) * 1.3 + pow(sd, 500.) * 12. + glint) + vec3f(1., .97, .9) * vec3f(${DAYQ.win}) * rim * .3) * (1. - fr);
   let z = zone(g.cam.xyz + V * min(d, 150.)); // the ground map only covers the loaded window
   // outside the window the surface is a mirror of the water below: it shimmers with the light that plays on it
   let R = reflect(V, n);

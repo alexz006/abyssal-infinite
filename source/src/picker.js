@@ -72,7 +72,7 @@ function pickName() { $('cn').textContent = pickSel < 0 ? 'Free camera' : CRITNA
 function pickClose() { if (!pickOpen) return; pickOpen = false; $('cp').hidden = true; $('a').className = ''; $('k').style.display = ''; $('f').style.display = ''; $('xr').style.display = ''; pickName(); fitMenu(); }
 function pickToggle() {
   if (pickOpen) { pickClose(); return; }
-  pickOpen = true; $('cp').hidden = false; $('y').hidden = true; $('ys').hidden = true; $('x').textContent = 'Graphics settings'; $('xs').textContent = 'Sound settings'; $('xr').style.display = 'none';
+  pickOpen = true; $('cp').hidden = false; PANELS.forEach(([p, b, name]) => { $(p).hidden = true; $(b).textContent = name; }); $('xr').style.display = 'none';
   $('a').className = 'w'; $('k').style.display = 'none'; $('f').style.display = 'none'; $('cb').className = '';
   $('m').style.fontSize = ''; pickFit(); pickShow(pickSel); fitMenu();
 }

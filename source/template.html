@@ -43,7 +43,7 @@ h1 {
 p { margin: 0; }
 #a { display: grid; width: 27em; max-width: 100%; }
 #a > * { grid-area: 1/1; transition: opacity .8s, visibility .8s; }
-#s, #w, #k, #h, #x, #xs, #y, #ys { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
+#s, #w, #k, #h, #x, #xw, #xs, #y, #yw, #ys { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
 #w { margin-top: 1.2em; color: #7ff3ff; text-wrap: balance; }
 
 /* loading bar */
@@ -65,7 +65,7 @@ button, a {
   font: 800 1em/1.2 system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; text-decoration: none;
   color: #03222d; cursor: pointer; transition: transform .12s, filter .12s;
 }
-button:hover, a:hover { transform: translateY(-.12em); filter: brightness(1.15); }
+@media (hover: hover) { button:hover, a:hover { transform: translateY(-.12em); filter: brightness(1.15); } }
 button:active, a:active { transform: translateY(.1em); filter: brightness(.9); }
 :focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 #g { display: grid; gap: min(1.2em, 3.5vmin); }
@@ -80,17 +80,17 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 
 /* dark plates under the dive button: detail level, list of controls, touch hint */
 #k, #h { padding: 1em 1.6em; border-radius: .7em; background: #03131cb3; }
-#y, #ys { display: grid; gap: .3em; } #y[hidden], #ys[hidden] { display: none; }
-#xr { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
-#x, #xs { padding: .7em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
+#y, #yw, #ys { display: grid; gap: .3em; } #y[hidden], #yw[hidden], #ys[hidden] { display: none; }
+#xr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .6em; }
+#x, #xw, #xs { padding: .7em .2em; gap: .4em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
 
 /* detail level: three buttons in a row, the current one lit */
-#y p, #ys p, #tc { display: flex; align-items: center; gap: .4em; padding: .4em; border-radius: .7em; background: #03131cb3; }
-#y span, #ys span, #tc span { flex: 1.15; color: #7ff3ff; white-space: nowrap; }
+#y p, #yw p, #ys p, #tc { display: flex; align-items: center; gap: .4em; padding: .4em; border-radius: .7em; background: #03131cb3; }
+#y span, #yw span, #ys span, #tc span { flex: 1.15; padding-left: .7em; color: #7ff3ff; text-align: left; white-space: nowrap; }
 #y .w { white-space: normal; line-height: 1.15; }
-#y p button, #ys p button, #tc button { flex: 1; min-width: 0; padding: .5em 0; background: none; box-shadow: none; color: #e8fbff; letter-spacing: .08em; }
-#y p button:hover, #ys p button:hover, #tc button:hover { background: #7ff3ff33; }
-#y p button.on, #ys p button.on, #tc button.on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; pointer-events: none; }
+#y p button, #yw p button, #ys p button, #tc button { flex: 1; min-width: 0; padding: .5em 0; background: none; box-shadow: none; color: #e8fbff; letter-spacing: .08em; }
+@media (hover: hover) { #y p button:hover, #yw p button:hover, #ys p button:hover, #tc button:hover { background: #7ff3ff33; } }
+#y p button.on, #yw p button.on, #ys p button.on, #tc button.on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; pointer-events: none; }
 
 /* list of controls: two groups, key caps right-aligned against their labels */
 #k { display: flex; justify-content: center; gap: 2em; text-align: left; }
@@ -163,7 +163,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 #cp { display: grid; gap: .5em; font-size: .8em; } #cp[hidden] { display: none; }
 #cs { display: grid; grid-template-columns: repeat(11, 1fr); gap: .3em; }
 #cs button { padding: .35em .1em .4em; min-width: 0; background: #03131cb3; box-shadow: none; color: #e8fbff; font-size: .72em; letter-spacing: .02em; display: grid; justify-items: center; gap: .15em; border-radius: .5em; text-transform: none; }
-#cs button:hover { background: #7ff3ff33; }
+@media (hover: hover) { #cs button:hover { background: #7ff3ff33; } }
 #cs .on { background: linear-gradient(#9ff6ff, #19c3d6); color: #03131c; }
 #cs canvas { width: 100%; max-width: 64px; aspect-ratio: 64 / 30; }
 #cs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -226,7 +226,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
         <div id=cs></div>
         <div id=cw><canvas id=cv></canvas><div id=ci></div></div>
       </div>
-      <div id=xr><button id=x>Graphics settings</button><button id=xs>Sound settings</button></div>
+      <div id=xr><button id=x>Graphics</button><button id=xw>World</button><button id=xs>Sound</button></div>
       <div id=ys hidden>
         <p><span>Volume</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
         <p><span>Water</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
@@ -234,9 +234,15 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
         <p><span>Sea life</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
         <p><span>Gurgling</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
       </div>
+      <div id=yw hidden>
+        <p id=v><span>Water</span><button>Lagoon</button><button>Clear</button><button>Crystal</button></p>
+        <p><span>Creatures</span><button>Few</button><button>Medium</button><button>Many</button></p>
+        <p><span>Time</span><button>Morning</button><button>Noon</button><button>Evening</button><button>Night</button></p>
+        <p><span>Colours</span><button>Vivid</button><button>Natural</button></p>
+        <p class=h><span>HUD</span><button>Off</button><button>On</button></p>
+      </div>
       <div id=y hidden>
         <p id=q><span>Detail</span><button>Low</button><button>Medium</button><button>High</button></p>
-        <p id=v><span>Water</span><button>Lagoon</button><button>Clear</button><button>Crystal</button></p>
         <p><span>Distance</span><button>Near</button><button>Medium</button><button>Far</button></p>
         <p><span>Resolution</span><button>Auto</button><button>50%</button><button>75%</button><button>100%</button></p>
         <p><span>Plants</span><button>Sparse</button><button>Medium</button><button>Dense</button></p>
@@ -270,7 +276,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
     </div>
   </div>
   <div id=u hidden><div>
-    <p>Graphics settings were changed</p>
+    <p>Settings were changed</p>
     <p>They take effect after the page reloads.</p>
     <button id=ua>Apply and reload</button>
     <button id=ud>Discard changes</button>

@@ -6,12 +6,14 @@
 // come is a matter of depth: each keeps to its own range (CRIT, creatures.js), so the company changes on the way down.
 // How many creatures there are around one player. The limits go together with the server's (server/src/sea.js):
 //   PEERMAX  other players shown at once: the server tells of no more than its SHOWN nearest (keep the two equal)
-//   BOTN     bots around the camera when no other player is near (by detail level)
+//   BOTN     bots around the camera when no other player is near (by detail level, times the World panel's choice)
 //   BOTMIN   bots that stay however many players there are, so the sea is never only players
 //   BOTMAX   room in the instance buffer: the player, PEERMAX others and BOTN bots (for the moment before the bots
 //            make room), with a few to spare
 // Bots fill what the players leave: BOTN less the players near, but not under BOTMIN (botPopulate).
-const PEERMAX = 40, BOTN = [26, 20, 14][LV], BOTMIN = [8, 6, 4][LV], BOTMAX = 72;
+const PEERMAX = 40, BOTN = round([26, 20, 14][LV] * POPK), BOTMIN = round([8, 6, 4][LV] * POPK), BOTMAX = 46 + BOTN;
+// (POPK: the World panel's "creatures" - half, as is, twice; a species' own limit, CRIT.near, grows and shrinks with it)
+const nearN = (s) => Math.ceil(CRIT[s].near * POPK);
 let me = null; // the bot the player is, when playing a creature (see the end of this file)
 const bots = [], botData = new Float32Array(BOTMAX * 8), botBuf = device.createBuffer({ size: BOTMAX * 32, usage: BU.VERTEX | BU.COPY_DST });
 const botStart = new Uint32Array(CRIT.length + 1); // where each species' instances start in the buffer
@@ -152,7 +154,7 @@ function botPopulate(first) {
   }
   const crabs = botW[CRAB] > 0;
   for (let n = first ? 60 : 3; n > 0 && own < want; n--) {
-    let sum = 0; for (let s = 0; s < CRIT.length; s++) { if (botCount[s] >= CRIT[s].near) botW[s] = 0; sum += botW[s]; }
+    let sum = 0; for (let s = 0; s < CRIT.length; s++) { if (botCount[s] >= nearN(s)) botW[s] = 0; sum += botW[s]; }
     if (sum <= 0) break;
     let pick = brnd() * sum, s = 0; while (s < CRIT.length - 1 && (pick -= botW[s]) > 0) s++;
     // ahead of a moving camera, anywhere around a still one; at first all through the water in view
@@ -160,7 +162,7 @@ function botPopulate(first) {
     if (!p) continue;
     // the small ones come a few together
     const group = s === 1 ? 4 + (brnd() * 4 | 0) : s === 2 || s === 7 ? 1 + (brnd() * 3 | 0) : 1, yaw = first ? brnd() * TAU : atan2(F[CZ] - p[2], F[CX] - p[0]) + brr(-1, 1);
-    for (let g = 0; g < group && botCount[s] < CRIT[s].near && bots.length < BOTMAX; g++) {
+    for (let g = 0; g < group && botCount[s] < nearN(s) && bots.length < BOTMAX; g++) {
       const q = g ? [p[0] + brr(-1, 1) * (1 + CRIT[s].len * 2), p[1] + brr(-0.6, 0.6) * (1 + CRIT[s].len), p[2] + brr(-1, 1) * (1 + CRIT[s].len * 2)] : p;
       if (g && !roomAt(q[0], q[1], q[2], CRIT[s].len * 0.5 + 0.5)) continue;
       botAdd(s, q, yaw + brr(-0.3, 0.3)); botCount[s]++; own++;
@@ -548,9 +550,10 @@ function meStep(dt, dyw, dpt, mf, mr, mu, fast) {
   const vyaw = F[YAW], vpit = F[PIT];
   // a dash can be held for nearly ten seconds; the stamina comes back in six and a half
   const burst = meBurstT > 0; meBurstT -= dt;
-  // The keys steer by the view, as in other games: W swims the way the view looks, S back towards the eye, A and D to
-  // the view's left and right, and the body turns to the way it goes. With no key held the body keeps its heading
-  // and the view is free to look around it.
+  // The keys steer by the view, as in other third-person games (the character turns to the way it moves): W swims the
+  // way the view looks, S back towards the eye, A and D to the view's left and right, and the body turns to the way it
+  // goes by the shorter way round. The way is taken from the view every frame, so turning the view while a key is
+  // held steers the body with it. With no key held the body keeps its heading and the view is free to look around it.
   const go = hypot(mf, mr) > 0, way = vyaw - PI / 2 + atan2(mr, mf);
   const dash = burst || (fast && meStamina > 0.02 && (go || mu !== 0)); meStamina = clamp(meStamina + (burst ? 0 : dash ? -dt / 9.6 : dt / 6.5), 0, 1);
   if (b.s === CRAB) {
@@ -739,7 +742,7 @@ const meFeed = (k) => { meHP = min(1, meHP + k); };
 function meLifeStep(dt) {
   meActT -= dt; meMsgT -= dt; meHurtT -= dt;
   // (on its back it does not starve; left alone it gets up)
-  if (meDown > 0) { meDown -= dt; if (meDown <= 0 && meHP > 0) { meHP = 0.25; me.dead = 0; meLost = 3; meClawT = 0; meSay('Back on your feet · both claws lost'); } } else meHP -= dt / 420;
+  if (meDown > 0) { meDown -= dt; if (meDown <= 0 && meHP > 0) { meHP = 0.25; me.dead = 0; meLost = 3; meClawT = 0; meSay('Back on your feet · both claws lost'); } } else meHP -= dt / (POPK < 1 ? 840 : 420); // (few creatures to eat: it drains half as fast)
   if (meLost && meDown <= 0) { if ((meClawT += dt) >= CLAWT) { meClawT = 0; meLost = growClaw(meLost); meSay(meLost ? 'A claw has grown back' : 'Both claws are back'); } } else meClawT = 0;
   if (meHP <= 0) {
     meDown = 0; meKX = meKZ = 0;

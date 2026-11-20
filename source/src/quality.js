@@ -35,6 +35,25 @@ const gdef = (lv) => (lv > 1 ? [0, 0, 0, 0, 0, 0, 0] : [2, 0, 2 - lv, 2 - lv, 1,
 const GFX = gdef(LV).map((d, i) => gset(i, [3, 4, 3, 3, 2, 3, 3][i], d));
 const VIEWD = [80, 105, 135][GFX[0]], RESQ = [0, 0.5, 0.75, 1][GFX[1]];
 const THIN = 4 >> GFX[2], SHADOW = 1024 << GFX[3], AA = GFX[4] ? 4 : 1, WATER = LV > 1 ? 256 : 512, RAYN = [2, 12, 34][GFX[5]], CSN = [0, 8, 24][GFX[6]];
+// World settings (the menu's World panel, with the water above): localStorage.abyssalWorld = "creatures,time,colours".
+//   creatures 0 few (half as many), 1 medium, 2 many (twice as many); with few of them to eat, health drains half as fast
+//   time      0 morning, 1 noon, 2 evening, 3 night: what the sun's light (sun), the water's own (sky) and the sky seen
+//             through the surface (win) are multiplied by (nat: see LITK in shaders.js). The sun stays where it is: under water its light comes
+//             down steeply at any hour, and the baked shadows and skylight stay true.
+//   colours   0 vivid (magenta carpets, turquoise and violet leaves), 1 natural (the greens, browns and reds of a sea,
+//             sand on level ground, thin algae, and warmer light on rock and sand)
+let WS = []; try { WS = (localStorage.abyssalWorld || '').split(','); } catch {}
+const WORLD = [3, 4, 2].map((n, i) => (WS[i] !== undefined && WS[i] !== '' && +WS[i] >= 0 && +WS[i] < n ? +WS[i] | 0 : i < 2 ? 1 : 0));
+const POPK = [0.5, 1, 2][WORLD[0]], NAT = WORLD[2];
+const DAYQ = [
+  { sun: '.98, .80, .58', sky: '.70, .80, .88', win: '.95, .86, .78', nat: '1.65, .70, .46' },
+  { sun: '1., 1., 1.', sky: '1., 1., 1.', win: '1., 1., 1.', nat: '1.7, .64, .36' },
+  { sun: '.95, .50, .28', sky: '.52, .48, .62', win: '.90, .50, .40', nat: '1.6, .84, .66' },
+  { sun: '.11, .16, .27', sky: '.13, .18, .30', win: '.05, .08, .17', nat: '1.6, .84, .66' },
+][WORLD[1]];
+// What is shown over the scene (the last row of the World panel): localStorage.abyssalHud, 0 off or 1 on. It is the sonar
+// and, at the bottom left, the creature's name, its bars and the messages. It takes effect at once.
+let HUD = 1; try { if (localStorage.abyssalHud === '0') HUD = 0; } catch {}
 // Sound settings (the menu's sound panel): localStorage.abyssalSnd = "volume,water,music,sea life,gurgling", each
 // 0 off, 1 low, 2 medium, 3 high. Water: rumble, surface wash, rush. Music: the drone and the chimes. Sea life: the
 // stock bubbles and the distant whale calls. Gurgling: the players' creatures. They take effect at once.

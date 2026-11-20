@@ -97,9 +97,11 @@ see [`server/README.md`](server/README.md). A page opened from a file plays alon
 All in the menu, and remembered by your browser:
 
 - **Detail** (Low / Medium / High): how much grows in the world and how many creatures surround you. Computers start
-  on High, phones on Medium or Low. If loading crashes the tab, the page starts again one level lower.
-- **Water**: Lagoon, Clear or Crystal.
+  on High, phones on Low. If loading crashes the tab, the page starts again one level lower.
 - **Graphics**: draw distance, resolution, plants, shadows, anti-aliasing, light rays. Applying them reloads the page.
+- **World**: the water (Lagoon, Clear or Crystal), how many creatures live around you (Few, Medium, Many; with Few,
+  health drains half as fast), the time of day (Morning, Noon, Evening, Night) and the colours (Vivid, or Natural
+  without the magenta and turquoise).
 - **Sound**: separate levels for water, music, sea life and gurgling.
 
 ## How it works
