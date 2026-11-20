@@ -136,7 +136,8 @@ function botPopulate(first) {
     const rg = botRange(b.s, far);
     // (another player stays for as long as the server speaks of it, net.js)
     if (b.me || (b.net && !b.gone)) continue;
-    if (b.gone || d > rg * 1.5 + 30 || (d > rg + 12 && sp > 2 && dx * vx + dz * vz < 0)) { bots[i] = bots[bots.length - 1]; bots.pop(); }
+    // (a crab is too small to see from further, and a slow walker - a crab itself - must not keep the old ones)
+    if (b.gone || d > rg * 1.5 + 30 || (d > rg + 12 && (b.s === CRAB || (sp > 2 && dx * vx + dz * vz < 0)))) { bots[i] = bots[bots.length - 1]; bots.pop(); }
   }
   const d = -F[CY], wd = -seaBase(F[CX]);
   botWeights(d, wd, botW); botCount.fill(0);
@@ -149,6 +150,7 @@ function botPopulate(first) {
     for (const b of bots) if (!b.me && !b.net && !b.gone && !b.dead) { const q = hypot(b.x - F[CX], b.y - F[CY], b.z - F[CZ]); if (q > od) { od = q; out = b; } }
     if (out) out.gone = true;
   }
+  const crabs = botW[CRAB] > 0;
   for (let n = first ? 60 : 3; n > 0 && own < want; n--) {
     let sum = 0; for (let s = 0; s < CRIT.length; s++) { if (botCount[s] >= CRIT[s].near) botW[s] = 0; sum += botW[s]; }
     if (sum <= 0) break;
@@ -163,6 +165,14 @@ function botPopulate(first) {
       if (g && !roomAt(q[0], q[1], q[2], CRIT[s].len * 0.5 + 0.5)) continue;
       botAdd(s, q, yaw + brr(-0.3, 0.3)); botCount[s]++; own++;
     }
+  }
+  // Where crabs live there are always a few around (more for a player who is a crab and looks for a fight), also
+  // when the company is full and the camera too slow for anyone to leave: then the farthest of the others makes room.
+  for (let n = first ? 30 : 1; n > 0 && crabs && botCount[CRAB] < (me && me.s === CRAB ? 6 : 4) && bots.length < BOTMAX; n--) {
+    const rg = botRange(CRAB, far), go = sp > 0.2, p = first ? botPlace(CRAB, 4, rg * 0.9, brnd() * TAU, PI) : botPlace(CRAB, go ? rg : rg * 0.5, rg + 6, go ? atan2(vz, vx) : brnd() * TAU, go ? 1.5 : PI);
+    if (!p) continue;
+    if (own >= want) { let out = null, od = -1; for (const b of bots) if (!b.me && !b.net && !b.gone && !b.dead && b.s !== CRAB) { const q = hypot(b.x - F[CX], b.y - F[CY], b.z - F[CZ]); if (q > od) { od = q; out = b; } } if (out) out.gone = true; } else own++;
+    botAdd(CRAB, p, brnd() * TAU); botCount[CRAB]++;
   }
 }
 
@@ -249,17 +259,20 @@ function botLeap(b, c, dt) {
 // the crab walks the floor sideways, stops, goes on; at an edge it steps off and sinks to the floor below
 function botCrab(b, c, dt) {
   b.next -= dt;
+  if (b.lost) { if ((b.clawT = (b.clawT || 0) + dt) >= CLAWT) { b.clawT = 0; b.lost = growClaw(b.lost); } }
   // struck by the player's crab: it turns on it, closes in and strikes back for a while (survival, below)
-  const angry = b.anger > 0 && me && me.s === CRAB;
+  const angry = b.anger > 0 && me && me.s === CRAB && meDown <= 0;
   if (angry) {
     b.anger -= dt; b.strikeT = (b.strikeT === undefined ? 0.8 : b.strikeT) - dt;
-    const dx = me.x - b.x, dz = me.z - b.z, d = hypot(dx, dz); b.ty = atan2(dz, dx); b.next = 1; b.v = d > 0.8 ? c.spd : 0;
-    if (d < 1.2 && b.strikeT <= 0 && (b.lost || 0) !== 3) { b.strikeT = brr(0.9, 1.7); b.snap = 0.28; crabStrikesBack(b); }
+    const dx = me.x - b.x, dz = me.z - b.z, d = hypot(dx, dz); b.ty = atan2(dz, dx); b.next = 1; b.v = d > REACH * 0.7 ? c.spd : 0;
+    if (d < REACH && ahead(b, me) && b.strikeT <= 0 && (b.lost || 0) !== 3) { b.strikeT = brr(0.9, 1.7); b.snap = 0.28; crabStrikesBack(b); }
   }
   if (b.next <= 0) { b.next = brr(1.5, 6); b.ty = b.yaw + brr(-1.4, 1.4); b.v = brnd() < 0.3 ? 0 : c.spd * brr(0.5, 1); if (brnd() < 0.5) b.k = -b.k; }
   b.wy += (clamp(wrapA(b.ty - b.yaw) * 2, -c.turn, c.turn) - b.wy) * min(1, dt * 4); b.yaw += b.wy * dt;
   // it faces along yaw and walks to its side
-  const dir = angry ? b.yaw : b.yaw + (b.k > 0 ? PI / 2 : -PI / 2), nx = b.x + cos(dir) * b.v * dt, nz = b.z + sin(dir) * b.v * dt;
+  // (kx, kz: what is left of the shove a strike gave it)
+  const dir = angry ? b.yaw : b.yaw + (b.k > 0 ? PI / 2 : -PI / 2), nx = b.x + (cos(dir) * b.v + (b.kx || 0)) * dt, nz = b.z + (sin(dir) * b.v + (b.kz || 0)) * dt;
+  if (b.kx || b.kz) { const k = exp(-dt * 8); b.kx *= k; b.kz *= k; if (abs(b.kx) + abs(b.kz) < 0.05) b.kx = b.kz = 0; }
   const f = floorBelow(nx, b.y + 0.7, nz, b.y - 1.5);
   if (f === null) {
     if (inRock(nx, b.y + 0.7, nz) || shipD(nx, b.y + 0.15, nz) < 0.12) { b.ty = b.yaw + PI * 0.6; b.next = 2; } // a wall: turn away
@@ -535,9 +548,11 @@ function meStep(dt, dyw, dpt, mf, mr, mu, fast) {
     const f = floorBelow(b.x, b.y + 0.9, b.z, b.y - 1.3), sp = c.spd * (dash ? 1.8 : 1), air = f === null && !onShip;
     let dir = way, v = 0, turnTo = 0;
     if (go) { const d = wrapA(way - b.yaw); b.k = d >= 0 ? 1 : -1; turnTo = wrapA(way - b.k * PI / 2 - b.yaw); v = sp * (0.45 + 0.55 * abs(sin(d))); }
+    else if (meHeld || b.gur || meActT > 0) turnTo = wrapA(vyaw - PI / 2 - b.yaw); // striking or blocking: its claws to where the view looks
     if (burst) { dir = meDart; v = c.spd * 3.2; turnTo = 0; }
+    if (meDown > 0) { v = 0; turnTo = 0; } // beaten: on its back
     b.wy += (clamp(turnTo * 4, -c.turn, c.turn) - b.wy) * min(1, dt * 6); b.yaw += b.wy * dt;
-    const k = air ? 0.12 : 1, vx = cos(dir) * v * k, vz = sin(dir) * v * k;
+    const k = air ? 0.12 : 1, vx = cos(dir) * v * k + meKX, vz = sin(dir) * v * k + meKZ, kk = exp(-dt * 8); meKX *= kk; meKZ *= kk; // (meKX, meKZ: the shove of a strike)
     const nx = min(b.x + vx * dt, SHOREX), nz = b.z + vz * dt;
     // a step to (x, z), if nothing stands there
     const step = (x, z) => {
@@ -679,7 +694,30 @@ function meStep(dt, dyw, dpt, mf, mr, mu, fast) {
 //   (they grow back with the next life), a beaten one lies on its back and can be eaten - and where no crab is
 //   near it picks food from the floor.
 // Hunters that catch the player bite it; among themselves the bots eat what they catch.
-let meHP = 1, meLost = 0, meActT = 0, meHeld = 0, meAway = false, meMsg = '', meMsgT = 0, meHurtT = -9, meCause = '';
+// A fight of crabs (the same numbers are in the servers, for a fight between players: server/src/sea.js and
+// server/openresty/sea.lua): a strike takes STRIKE of the other's health, less with one claw gone, and shoves it
+// back; a crab that holds its claws up (the gurgle button) takes BLOCK of that and keeps its claws, but cannot
+// strike meanwhile; a strike that is not blocked tears a claw off once in CLAWP times. A beaten crab - the player's
+// too - lies on its back for DOWN seconds: eaten by then it dies, left alone it gets up with a quarter of its health.
+// A crab that got up has lost both claws; a lost claw grows back in CLAWT seconds, one at a time. A crab's new life
+// begins weak, so that the eaten one does not come straight back at its wounded winner: a third of its health and
+// one claw.
+// REACH: how far apart two crabs may be for a strike to land, middle to middle, 0.53 m: the claws' tips are 0.83 of
+// a shell's width (0.31 m) ahead of the middle (meshCrab, creatures.js), so two crabs face to face have their claws
+// on each other's, and a crab turned away is reached on its shell. And the claws are at the front: the other crab has to be ahead (FRONT: the cosine of how far
+// off the crab's heading it may be). A crab that strikes or holds its claws up turns to where the view looks.
+const STRIKE = 0.14, STRIKE1 = 0.085, BLOCK = 0.3, CLAWP = 0.1, DOWN = 8, SHOVE = 1.5, CLAWT = 45, REACH = CRIT[CRAB].len * 1.42, FRONT = 0.64;
+let meHP = 1, meLost = 0, meActT = 0, meHeld = 0, meAway = false, meMsg = '', meMsgT = 0, meHurtT = -9, meCause = '', meDown = 0, meKX = 0, meKZ = 0, meClawT = 0;
+// is crab o ahead of crab b, where its claws are?
+const ahead = (b, o) => { const dx = o.x - b.x, dz = o.z - b.z, d = hypot(dx, dz); return d < 0.05 || (cos(b.yaw) * dx + sin(b.yaw) * dz) / d > FRONT; };
+// (a claw back: of two lost, either)
+const growClaw = (l) => (l === 3 ? (Math.random() < 0.5 ? 1 : 2) : 0);
+const meBlocks = () => me && me.s === CRAB && me.gur && meLost !== 3 && meDown <= 0;
+// the player's crab is beaten: onto its back
+function meBeaten(by) { meHP = 0.02; meDown = DOWN; me.dead = 1; me.v = 0; meKX = meKZ = 0; for (const b of bots) b.anger = 0; meSay('Beaten by ' + by + ' · on your back'); }
+// a strike shoves the struck one away from (x, z)
+const shove = (b, x, z) => { const dx = b.x - x, dz = b.z - z, d = hypot(dx, dz) || 1; return [dx / d * SHOVE, dz / d * SHOVE]; };
+const loseClaw = (l) => l | (l & 1 ? 2 : l & 2 ? 1 : Math.random() < 0.5 ? 1 : 2);
 const sfx = [], fx = (k, s) => { if (sfx.length < 8) sfx.push([k, s]); }; // (sounds for audio.js to make; 'bite' with the species whose bite it is)
 const meSay = (t) => { meMsg = t; meMsgT = 4; };
 const aName = (s) => 'a ' + CRITNAME[s].toLowerCase();
@@ -687,15 +725,18 @@ const meFeed = (k) => { meHP = min(1, meHP + k); };
 // one frame of it; true if the creature died and a new one took its place
 function meLifeStep(dt) {
   meActT -= dt; meMsgT -= dt; meHurtT -= dt;
-  meHP -= dt / 420;
+  // (on its back it does not starve; left alone it gets up)
+  if (meDown > 0) { meDown -= dt; if (meDown <= 0 && meHP > 0) { meHP = 0.25; me.dead = 0; meLost = 3; meClawT = 0; meSay('Back on your feet · both claws lost'); } } else meHP -= dt / 420;
+  if (meLost && meDown <= 0) { if ((meClawT += dt) >= CLAWT) { meClawT = 0; meLost = growClaw(meLost); meSay(meLost ? 'A claw has grown back' : 'Both claws are back'); } } else meClawT = 0;
   if (meHP <= 0) {
+    meDown = 0; meKX = meKZ = 0;
     const s = me.s, why = meHurtT > -1.5 && meCause ? meCause : 'Starved';
     for (const b of bots) if (b.tgt === me) { b.tgt = null; b.mode = 0; b.cool = brr(8, 14); }
     const i = bots.indexOf(me); if (i >= 0) { bots[i] = bots[bots.length - 1]; bots.pop(); } me = null;
-    meHP = 0.6; meLost = 0; meStamina = 1; meCause = ''; meSync(); meSay(why + ' · a new ' + CRITNAME[s].toLowerCase() + ' now'); fx('hurt');
+    meHP = s === CRAB ? 0.3 : 0.6; meLost = s === CRAB ? (Math.random() < 0.5 ? 1 : 2) : 0; meClawT = 0; meStamina = 1; meCause = ''; meSync(); meSay(why + ' · a new ' + CRITNAME[s].toLowerCase() + ' now'); fx('hurt');
     return true;
   }
-  if (meHeld) meAct();
+  if (meHeld && meDown <= 0) meAct();
   return false;
 }
 function meHurt(d, s) { if (!me || meAway) return; meHP -= d; meHurtT = 0; meCause = 'Eaten by ' + aName(s); meSay('Bitten by ' + aName(s)); fx('hurt'); }
@@ -708,24 +749,33 @@ function botBite(a, t) {
 }
 function crabStrikesBack(b) {
   if (meAway) return;
-  meHurt(b.lost ? 0.08 : 0.14, CRAB); meCause = 'Beaten by a crab'; meSay('Struck by a crab');
-  if (Math.random() < 0.2 && meLost !== 3) { meLost |= meLost & 1 ? 2 : meLost & 2 ? 1 : Math.random() < 0.5 ? 1 : 2; meSay('Lost a claw'); }
+  const blk = meBlocks();
+  meHurt((b.lost ? STRIKE1 : STRIKE) * 0.5 * (blk ? BLOCK : 1), CRAB); meCause = 'Beaten by a crab'; meSay(blk ? 'Blocked a crab\'s strike' : 'Struck by a crab');
+  [meKX, meKZ] = shove(me, b.x, b.z);
+  if (!blk && Math.random() < CLAWP && meLost !== 3) { meLost = loseClaw(meLost); meSay('Lost a claw'); }
+  if (meHP <= 0) meBeaten('a crab');
   fx('bite', CRAB);
 }
 // the left mouse button
 function meAct() {
-  if (!me || meActT > 0) return;
+  if (!me || meActT > 0 || meDown > 0 || meBlocks()) return; // (a crab with its claws up is blocking: no strike)
   meActT = 0.55; me.snap = 0.28; const c = CRIT[me.s];
   if (me.s === CRAB) {
-    let o = null, od = 1.3;
-    for (const b of bots) if (b !== me && b.s === CRAB && !b.gone) { const d = hypot(b.x - me.x, b.y - me.y, b.z - me.z); if (d < od) { od = d; o = b; } }
-    if (o && o.net) { fx('bite', CRAB); if (meLost === 3) { meSay('No claws to strike with'); return; } netSend({ t: 'bite', to: o.id }); meSay('Struck ' + (o.name || 'a crab')); return; }
+    // the nearest crab within reach; one that stands (not a beaten one, to be eaten) has to be ahead, at the claws
+    let o = null, od = REACH, side = false;
+    for (const b of bots) if (b !== me && b.s === CRAB && !b.gone) { const d = hypot(b.x - me.x, b.y - me.y, b.z - me.z); if (d < od) { if (b.dead || ahead(me, b)) { od = d; o = b; } else side = true; } }
+    if (!o && side) { if (meLost !== 3) meSay('Turn your claws to it'); return; }
+    // (another player's crab: the server sees to the strike, and to the meal if that one lies beaten)
+    if (o && o.net) { fx(o.dead ? 'nibble' : 'bite', CRAB); if (meLost === 3 && !o.dead) { meSay('No claws to strike with'); return; } netSend({ t: 'bite', to: o.id }); if (!o.dead) meSay((o.gur && o.lost !== 3 ? 'Blocked by ' : 'Struck ') + (o.name || 'a crab')); return; }
     if (o && o.dead) { o.gone = true; meFeed(0.45); meSay('Ate the beaten crab'); fx('nibble'); fx('eat'); }
     else if (o) {
       if (meLost === 3) { meSay('No claws to strike with'); return; }
-      fx('bite', CRAB); o.hp = (o.hp === undefined ? 1 : o.hp) - (meLost ? 0.17 : 0.28); o.anger = 8; o.rw = o.rt = 0; o.gur = false;
-      if (o.hp <= 0) { o.dead = 30; o.anger = 0; o.v = 0; meSay('Crab beaten · eat it'); }
-      else if (Math.random() < 0.22 && (o.lost || 0) !== 3) { const l = o.lost || 0; o.lost = l | (l & 1 ? 2 : l & 2 ? 1 : Math.random() < 0.5 ? 1 : 2); meSay('Tore off its claw'); }
+      const blk = o.gur && (o.lost || 0) !== 3; // (it had its claws up)
+      fx('bite', CRAB); o.hp = (o.hp === undefined ? 1 : o.hp) - (meLost ? STRIKE1 : STRIKE) * (blk ? BLOCK : 1); o.anger = 8; o.rw = o.rt = 0; o.gur = false;
+      [o.kx, o.kz] = shove(o, me.x, me.z);
+      if (o.hp <= 0) { o.dead = 30; o.anger = 0; o.v = 0; o.kx = o.kz = 0; meSay('Crab beaten · eat it'); }
+      else if (!blk && Math.random() < CLAWP && (o.lost || 0) !== 3) { o.lost = loseClaw(o.lost || 0); meSay('Tore off its claw'); }
+      else if (blk) meSay('The crab blocked it');
     } else if (me.mode === 0) { meFeed(0.05); fx('nibble'); }
     return;
   }

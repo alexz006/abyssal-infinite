@@ -37,11 +37,20 @@ function netHear(m) {
   // (the connection is closed and tried again every few seconds: said once, and again when a place has come free)
   else if (m.t === 'full') { if (!netFull) meSay('The sea is full · playing alone'); netFull = true; }
   else if (m.t === 'bit' && me && !meAway) {
-    // bitten by another player (the server has checked that it could): as a hunter's bite; a crab's strike may cost a claw
+    // bitten by another player (the server has checked that it could): as a hunter's bite. A crab's strike (see the
+    // fight of crabs, bots.js) shoves, may cost a claw unless it was blocked (m.blk), and at nothing leaves the crab
+    // on its back for the other to eat; any other bite at nothing is the end, and feeds the biter.
+    const crab = m.s === CRAB && me.s === CRAB, who = netWho(m.from), down = meDown > 0;
     fx('bite', m.s); meHurt(m.dmg, m.s);
-    const crab = m.s === CRAB && me.s === CRAB; meCause = (crab ? 'Beaten by ' : 'Eaten by ') + netWho(m.from); meSay((crab ? 'Struck by ' : 'Bitten by ') + netWho(m.from));
-    if (crab && Math.random() < 0.2 && meLost !== 3) { meLost |= meLost & 1 ? 2 : meLost & 2 ? 1 : Math.random() < 0.5 ? 1 : 2; meSay('Lost a claw to ' + netWho(m.from)); }
-    if (meHP <= 0) netSend({ t: 'ate' });
+    meCause = (crab ? 'Beaten by ' : 'Eaten by ') + who; meSay((crab ? m.blk ? 'Blocked ' : 'Struck by ' : 'Bitten by ') + who);
+    if (crab && !down) {
+      const a = netPeers.get(m.from); if (a) [meKX, meKZ] = shove(me, a.x, a.z);
+      if (!m.blk && Math.random() < CLAWP && meLost !== 3) { meLost = loseClaw(meLost); meSay('Lost a claw to ' + who); }
+      if (meHP <= 0) meBeaten(who);
+    } else if (meHP <= 0) netSend({ t: 'ate' });
+  } else if (m.t === 'eaten' && me && !meAway && meDown > 0) {
+    // beaten and on its back, and the other crab has eaten it
+    meHP = 0; meHurtT = 0; meCause = 'Eaten by ' + netWho(m.from); fx('hurt');
   } else if (m.t === 'fed') { meFeed(m.gain); meSay('Ate ' + netWho(m.id)); fx('eat'); }
 }
 // the players near, ten times a second: [2, 0, count] then for each [id, species, flags, talk, 0, x, y, z, yaw, pitch, speed]
@@ -54,8 +63,9 @@ function netPacket(buf) {
     let b = netPeers.get(id);
     if (!b || b.s !== s) { netDrop(id); if (netPeers.size >= PEERMAX) continue; b = botAdd(s, [x, y, z], yaw); b.net = true; b.id = id; b.name = netNames.get(id) || ''; b.pf = fl; netPeers.set(id, b); }
     b.nx = x; b.ny = y; b.nz = z; b.nyaw = yaw; b.npit = v.getFloat32(o + 22, true); b.v = v.getFloat32(o + 26, true); b.stamp = now;
-    // flags: 1 gurgling, 2 its mouth or claws have just snapped, 4 and 8 the claws a crab has lost
-    b.gur = (fl & 1) > 0; if (fl & 2 && !(b.pf & 2)) b.snap = 0.28; b.lost = fl >> 2 & 3; b.pf = fl;
+    // flags: 1 gurgling (a crab: claws up, blocking), 2 its mouth or claws have just snapped, 4 and 8 the claws a crab
+    // has lost, 16 a beaten crab on its back
+    b.gur = (fl & 1) > 0; if (fl & 2 && !(b.pf & 2)) b.snap = 0.28; b.lost = fl >> 2 & 3; b.dead = fl & 16 ? 1 : 0; b.pf = fl;
   }
 }
 // a remote player between two packets: eased to where it was last said to be
@@ -74,7 +84,7 @@ function netFrame(dt) {
   if ((netSendT += dt) < 0.125) return;
   netSendT = 0;
   const buf = new ArrayBuffer(28), v = new DataView(buf), b = me, away = !b || meAway;
-  v.setUint8(0, 1); v.setUint8(1, away ? 255 : b.s); v.setUint8(2, away ? 0 : (b.gur ? 1 : 0) | (b.snap > 0 ? 2 : 0) | meLost << 2); v.setUint8(3, 0);
+  v.setUint8(0, 1); v.setUint8(1, away ? 255 : b.s); v.setUint8(2, away ? 0 : (b.gur ? 1 : 0) | (b.snap > 0 ? 2 : 0) | meLost << 2 | (meDown > 0 ? 16 : 0)); v.setUint8(3, 0);
   [b ? b.x : F[CX], b ? b.y : F[CY], b ? b.z : F[CZ], b ? b.yaw : 0, b && b.s !== CRAB ? b.pit : 0, b ? b.v : 0].forEach((f, i) => v.setFloat32(4 + i * 4, f, true));
   netSend(buf);
 }

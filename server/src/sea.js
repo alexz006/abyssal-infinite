@@ -18,6 +18,13 @@ export const MAXP = 100;      // players in the sea at once: one more is told th
 export const SHOWN = 40;      // of those near, a player is told of this many at most, the nearest (the game draws
                               // no more: PEERMAX in source/src/bots.js, keep the two equal)
 const IDLE = 30000;           // ms without a word: the connection is dropped
+// A fight of crabs (the same numbers as in the game, source/src/bots.js): what a strike takes of the other's health,
+// with both claws and with one; what part of it gets through claws held up; how much a beaten crab is to eat.
+// Flags of a state: 1 gurgling (a crab: claws up, blocking), 2 snapping, 4 and 8 the claws a crab has lost, 16 beaten.
+// REACH: how far apart two crabs may be for a strike (0.53 m in the game, and what a crab walks while the network
+// is behind). FRONT: the struck one has to be ahead of the striker, where the claws are (the cosine of how far off
+// its heading; 0.64 in the game, looser here for the same reason).
+const STRIKE = 0.14, STRIKE1 = 0.085, BLOCK = 0.3, MEAL = 0.45, REACH = 1, FRONT = 0.3;
 const STATE = 28, ENTRY = 30; // bytes of a state as sent, and as relayed (with the sender's id)
 
 export class Sea {
@@ -27,7 +34,7 @@ export class Sea {
   join(ws) {
     if (this.players.size >= MAXP) { try { ws.send(JSON.stringify({ t: 'full' })); ws.close(1013, 'full'); } catch {} return; }
     let id = this.nextId; while (this.players.has(id)) id = id % 65000 + 1; this.nextId = id % 65000 + 1;
-    const p = { id, ws, name: '', s: -1, st: null, flags: 0, talk: 0, seen: Date.now(), bit: 0, by: 0, byAt: 0 };
+    const p = { id, ws, name: '', s: -1, st: null, flags: 0, talk: 0, seen: Date.now(), bit: 0, by: 0, byAt: 0, eaten: 0 };
     this.players.set(id, p);
     ws.addEventListener('message', (e) => { try { this.message(p, e.data); } catch {} });
     const gone = () => this.leave(p);
@@ -80,9 +87,21 @@ export class Sea {
     if (!b || b === a || !a.st || !b.st || a.s > 9 || b.s > 9 || now - a.bit < 400) return;
     const crabs = a.s === CRAB && b.s === CRAB; if (!crabs && !eats(a.s, b.s)) return;
     const d = Math.hypot(a.st[0] - b.st[0], a.st[1] - b.st[1], a.st[2] - b.st[2]);
-    if (d > len(a.s) * 0.6 + len(b.s) * 0.5 + 3) return; // (three metres for what the network is behind by)
+    if (d > (crabs ? REACH : len(a.s) * 0.6 + len(b.s) * 0.5 + 3)) return; // (three metres for what the network is behind by)
+    if (crabs) {
+      // crab against crab. A beaten one, on its back, is eaten (once); otherwise a strike: none from a crab that is
+      // beaten itself, has its claws up or has no claws; weaker with one claw; mostly stopped by claws held up
+      const down = b.flags & 16, claws = (f) => (f & 12) !== 12;
+      if (a.flags & 16 || (!down && (a.flags & 1 || !claws(a.flags)))) return;
+      if (!down && d > 0.05 && (Math.cos(a.st[3]) * (b.st[0] - a.st[0]) + Math.sin(a.st[3]) * (b.st[2] - a.st[2])) / d < FRONT) return;
+      a.bit = now;
+      if (down) { if (now - b.eaten < 3000) return; b.eaten = now; this.send(b, { t: 'eaten', from: a.id }); this.send(a, { t: 'fed', id: b.id, gain: MEAL }); return; }
+      const blk = b.flags & 1 && claws(b.flags) ? 1 : 0;
+      this.send(b, { t: 'bit', from: a.id, s: a.s, dmg: +((a.flags & 12 ? STRIKE1 : STRIKE) * (blk ? BLOCK : 1)).toFixed(3), blk });
+      return;
+    }
     a.bit = now; b.by = a.id; b.byAt = now;
-    this.send(b, { t: 'bit', from: a.id, s: a.s, dmg: crabs ? 0.28 : +clamp(0.16 + 0.07 * len(a.s) / len(b.s), 0.2, 0.55).toFixed(3) });
+    this.send(b, { t: 'bit', from: a.id, s: a.s, dmg: +clamp(0.16 + 0.07 * len(a.s) / len(b.s), 0.2, 0.55).toFixed(3) });
   }
 
   // p says the last bite killed it: the one who bit is fed
@@ -90,7 +109,7 @@ export class Sea {
     const a = this.players.get(p.by);
     if (!a || Date.now() - p.byAt > 4000 || a.s > 9 || p.s > 9) return;
     p.by = 0;
-    this.send(a, { t: 'fed', id: p.id, gain: a.s === CRAB ? 0.45 : +clamp(0.1 + 0.6 * len(p.s) / len(a.s), 0.1, 0.5).toFixed(3) });
+    this.send(a, { t: 'fed', id: p.id, gain: a.s === CRAB ? MEAL : +clamp(0.1 + 0.6 * len(p.s) / len(a.s), 0.1, 0.5).toFixed(3) });
   }
 
   // to every player: the others near it. [2, 0, count (u16)] then for each [id (u16), species, flags, talk, 0, six floats]

@@ -47,7 +47,8 @@ window.abyssal = {
   bots: () => { const n = new Array(CRIT.length).fill(0); for (const b of bots) n[b.s]++; return n; },
   park: (list, d, gap) => { botHold = true; bots.length = 0; list.forEach((s, i) => { const o = (i - (list.length - 1) / 2) * gap; botAdd(s, [F[CX] + F[FX] * d + F[RX] * o, F[CY] + F[FY] * d, F[CZ] + F[FZ] * d + F[RZ] * o], atan2(F[RZ], F[RX]) + 0.5); }); },
   free: () => { botHold = false; bots.length = 0; },
-  pop: () => { botPopulate(true); return bots.length; },
+  pop: (first = true) => { botPopulate(first); return bots.length; },
+  crabsNear: () => bots.filter((b) => !b.me && b.s === 0 && !b.gone).map((b) => +hypot(b.x - F[CX], b.z - F[CZ]).toFixed(0)).sort((a, b) => a - b),
   sonar: () => { body.className = 'g'; sonarT = 1; sonarDraw($('sn'), 1); },
   // play species s (-1: the free camera) and swim n frames with the given keys and turn of the view per frame
   play: (s) => { meChoose(s); meSync(); hudWho(); return me ? [me.x, me.y, me.z] : null; },
@@ -62,6 +63,11 @@ window.abyssal = {
   // survival: the left button once; health, lost claws, the last message; set the health
   act: () => { meActT = 0; meAct(); return [+meHP.toFixed(3), meLost, meMsg]; },
   crabs: (lost) => { meLost = lost; const o = botAdd(0, [me.x + 0.55 * Math.cos(me.yaw) + 0.3, me.y, me.z + 0.55 * Math.sin(me.yaw)], 1); o.dead = 30; o.age = 9; const q = botAdd(0, [me.x + 0.55 * Math.cos(me.yaw) - 0.5, me.y, me.z + 0.55 * Math.sin(me.yaw) + 0.4], 2); q.lost = 2; q.age = 9; q.next = 99; q.v = 0; },
+  // a fight of crabs: a rival beside the player's crab; claws up or down; n frames of both; how the fight stands
+  rival: (d = 0.4, a = 0) => { for (const b of bots) if (!b.me && b.s === 0) b.gone = true; const q = botAdd(0, [me.x + d * cos(me.yaw + a), me.y, me.z + d * sin(me.yaw + a)], 2); q.age = 9; q.next = 99; q.v = 0; return bots.length; },
+  block: (on) => { me.gur = !!on; },
+  sim: (n) => { botHold = false; for (let i = 0; i < n; i++) { meStep(1 / 30, 0, 0, 0, 0, 0, false); botStep(1 / 30); } },
+  fight: () => ({ hp: +meHP.toFixed(3), lost: meLost, down: +meDown.toFixed(2), back: me ? me.dead || 0 : -1, msg: meMsg, at: me ? [+me.x.toFixed(2), +me.z.toFixed(2)] : null, rivals: bots.filter((b) => !b.me && b.s === 0 && !b.gone).map((b) => ({ hp: +(b.hp === undefined ? 1 : b.hp).toFixed(3), lost: b.lost || 0, dead: b.dead ? 1 : 0, d: +hypot(b.x - me.x, b.z - me.z).toFixed(2) })) }),
   life: (hp) => { if (hp !== undefined) meHP = hp; return [+meHP.toFixed(3), meLost, meMsg, me ? me.s : -1]; },
   shade: (k) => { shadeK = k; },
   net: (go) => { if (go) netConnect(); return { on: netOn, id: netId, names: [...netNames], peers: [...netPeers.values()].map((b) => [b.id, b.name, b.s, +b.x.toFixed(1), +b.y.toFixed(1), +b.z.toFixed(1), b.gur]) }; },

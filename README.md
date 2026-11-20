@@ -39,8 +39,11 @@ also choose the free camera and just look around.
 
 **Stay alive.** Health drains on its own over seven minutes, food restores it, and every bite you take costs you
 some. At zero you come back as a new creature of the same species. Hunters eat anything up to 60% of their own
-length; the small fish pick at plankton, the whale filters it, and the crab fights other crabs or picks food off the
-floor. Hunters lose you when they cannot see you, so rock, kelp and the ship are places to hide.
+length; the small fish pick at plankton, the whale filters it, and the crab picks food off the floor.
+
+**Crabs fight each other**, bots and players alike: face the other crab and strike with the left button, or hold
+the right one to raise your claws and block. A beaten crab lies on its back for eight seconds: eat it, or it gets
+up again without its claws, which take 45 seconds each to grow back. Hunters lose you when they cannot see you, so rock, kelp and the ship are places to hide.
 
 **Gurgle** to "talk": every species has its own voice, heard about 34 m away, and a nearby bot of your species
 answers. **The sonar** in the corner shows every creature within 100 m, colored by what it is to you: food, danger

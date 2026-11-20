@@ -97,11 +97,19 @@ Text messages are JSON, the two frequent ones are binary (little-endian).
 | client | state, 28 bytes, 8 a second | `[1, species (255: only watching), flags, 0, x, y, z, yaw, pitch, speed]`, the six numbers float32 |
 | server | neighbors, 10 a second | `[2, 0, count u16]` then per player within 170 m (the 40 nearest at most) `[id u16, species, flags, 0, 0, x, y, z, yaw, pitch, speed]` |
 | client | `{t:'bite', to}` | the server checks: could it eat that species (or crab against crab), is it within reach, not more than one in 0.4 s |
-| server | `{t:'bit', from, s, dmg}` | to the bitten one |
+| server | `{t:'bit', from, s, dmg}` | to the bitten one; a crab's strike also carries `blk` (1: its raised claws blocked most of it) |
+| server | `{t:'eaten', from}` | to a beaten crab (flag 16) that another crab has just eaten; the eater gets `fed` |
 | client | `{t:'ate'}` | the bitten one, if that bite killed it |
 | server | `{t:'fed', id, gain}` | to the one who bit |
 
-Flags: 1 gurgling, 2 the mouth or claws have just snapped, 4 and 8 the claws a crab has lost.
+Flags: 1 gurgling (a crab: claws up, blocking), 2 the mouth or claws have just snapped, 4 and 8 the claws a crab has
+lost, 16 a beaten crab lying on its back.
+
+A fight of crabs is settled from those flags: a strike lands from 1 m at most (0.53 m in the game) and only on a
+crab ahead of the striker, where its claws are; it takes 0.14 of the other's health (0.085 from a crab with one
+claw, nothing from one with none, with its claws up or beaten itself), and 0.3 of that if the other holds its claws
+up. A crab whose health runs out says so with flag 16 and lies there for eight seconds; a bite on it in that time is
+the meal.
 
 The server trusts positions as sent (there is no terrain here to check them against); what it does check is who may
 bite whom, from how far and how often. A connection silent for 30 seconds is dropped; the client reconnects by itself.

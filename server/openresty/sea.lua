@@ -7,6 +7,7 @@
 --   p:<id>   a player: its name and its last state; it expires by itself when the player falls silent
 --   q:<id>   messages waiting for that player from another one (a bite, a meal)
 --   by:<id>  who bit that player last (for four seconds)
+--   e:<id>   that player, a beaten crab, has just been eaten (for three seconds: it is eaten once)
 --   seq      the last id given out
 -- Each worker reads all players from it twenty times a second into a table of its own (the snapshot), and every
 -- connection builds its packets from that table: nothing is asked of the dictionary per neighbour.
@@ -16,7 +17,8 @@
 --   * a connection may send RATE messages a second (the game sends 8), more closes it;
 --   * numbers must be finite; a name is cut to 16 characters of valid UTF-8 without control characters or markup
 --     (a text frame that is not UTF-8 would make every browser it is relayed to drop its connection);
---   * a bite: only what the biter could eat, within reach, once in 0.4 s; the dictionary's queues are capped;
+--   * a bite: only what the biter could eat, within reach, once in 0.4 s; a crab's strike by its own flags and the
+--     other's (claws lost, claws up, beaten); the dictionary's queues are capped;
 --   * a browser page of another site is refused (Origin); the per-address limits are in the nginx configuration.
 
 local S = package.loaded.abyssal_sea
@@ -35,6 +37,14 @@ if not S then
   local IDLE = 30              -- seconds without a word: the connection is dropped
   local RATE, BURST = 30, 60   -- messages a second from one connection, and how many may come at once
   local QMAX = 32              -- messages that may wait for one player
+  -- A fight of crabs (the same numbers as in the game, source/src/bots.js): what a strike takes of the other's
+  -- health, with both claws and with one; what part of it gets through claws held up; how much a beaten crab is to
+  -- eat. Flags of a state: 1 gurgling (a crab: claws up, blocking), 2 snapping, 4 and 8 the claws a crab has lost,
+  -- 16 beaten.
+  -- REACH: how far apart two crabs may be for a strike (0.53 m in the game, and what a crab walks while the
+  -- network is behind). FRONT: the struck one has to be ahead of the striker, where the claws are (the cosine of
+  -- how far off its heading; 0.64 in the game, looser here for the same reason).
+  local STRIKE, STRIKE1, BLOCK, MEAL, REACH, FRONT = 0.14, 0.085, 0.3, 0.45, 1, 0.3
 
   local REAL, GSCALE, CRAB, WHALE = { 0.2, 0.06, 0.09, 0.45, 1.3, 1.8, 2.0, 2.8, 4.6, 16.5 }, 8.4 / 4.5, 0, 9
   local function len(s) return REAL[s + 1] * GSCALE end
@@ -118,7 +128,7 @@ if not S then
     local s = byte(data, 2); if s > 9 and s ~= 255 then return end
     local raw = sub(data, 5); ffi.copy(fbuf, raw, 24)
     for i = 0, 5 do local f = fbuf[i]; if f ~= f or f == math.huge or f == -math.huge then return end end
-    me.s, me.fl, me.talk, me.raw, me.x, me.y, me.z = s, byte(data, 3), byte(data, 4), raw, fbuf[0], fbuf[1], fbuf[2]
+    me.s, me.fl, me.talk, me.raw, me.x, me.y, me.z, me.yaw = s, byte(data, 3), byte(data, 4), raw, fbuf[0], fbuf[1], fbuf[2], fbuf[3]
     store(me)
   end
 
@@ -144,14 +154,32 @@ if not S then
       if not b or b.id == me.id or not me.raw or not b.ent or me.s > 9 or b.s > 9 or now - me.bit < 0.4 then return end
       local crabs = me.s == CRAB and b.s == CRAB; if not crabs and not eats(me.s, b.s) then return end
       local dx, dy, dz = me.x - b.x, me.y - b.y, me.z - b.z
-      if sqrt(dx * dx + dy * dy + dz * dz) > len(me.s) * 0.6 + len(b.s) * 0.5 + 3 then return end -- (three metres for what the network is behind by)
+      local d = sqrt(dx * dx + dy * dy + dz * dz)
+      if d > (crabs and REACH or len(me.s) * 0.6 + len(b.s) * 0.5 + 3) then return end -- (three metres for what the network is behind by)
+      if crabs then
+        -- crab against crab. A beaten one, on its back, is eaten (once); otherwise a strike: none from a crab that
+        -- is beaten itself, has its claws up or has no claws; weaker with one claw; mostly stopped by claws held up
+        local af, bf = me.fl, b.fl
+        local down, aclaws, bclaws = bit.band(bf, 16) ~= 0, bit.band(af, 12) ~= 12, bit.band(bf, 12) ~= 12
+        if bit.band(af, 16) ~= 0 or (not down and (bit.band(af, 1) ~= 0 or not aclaws)) then return end
+        if not down and d > 0.05 and (math.cos(me.yaw) * -dx + math.sin(me.yaw) * -dz) / d < FRONT then return end
+        me.bit = now
+        if down then
+          if not dict:add('e:' .. b.id, 1, 3) then return end
+          post(b.id, { t = 'eaten', from = me.id }); say(me, { t = 'fed', id = b.id, gain = MEAL })
+          return
+        end
+        local blk = bit.band(bf, 1) ~= 0 and bclaws
+        post(b.id, { t = 'bit', from = me.id, s = me.s, dmg = round3((bit.band(af, 12) ~= 0 and STRIKE1 or STRIKE) * (blk and BLOCK or 1)), blk = blk and 1 or 0 })
+        return
+      end
       me.bit = now; dict:set('by:' .. b.id, me.id, 4)
-      post(b.id, { t = 'bit', from = me.id, s = me.s, dmg = crabs and 0.28 or round3(clamp(0.16 + 0.07 * len(me.s) / len(b.s), 0.2, 0.55)) })
+      post(b.id, { t = 'bit', from = me.id, s = me.s, dmg = round3(clamp(0.16 + 0.07 * len(me.s) / len(b.s), 0.2, 0.55)) })
     elseif t == 'ate' then
       -- the last bite killed it: the one who bit is fed
       local k = 'by:' .. me.id; local a = S.snap[dict:get(k) or 0]; dict:delete(k)
       if not a or not a.s or a.s > 9 or not me.raw or me.s > 9 then return end
-      post(a.id, { t = 'fed', id = me.id, gain = a.s == CRAB and 0.45 or round3(clamp(0.1 + 0.6 * len(me.s) / len(a.s), 0.1, 0.5)) })
+      post(a.id, { t = 'fed', id = me.id, gain = a.s == CRAB and MEAL or round3(clamp(0.1 + 0.6 * len(me.s) / len(a.s), 0.1, 0.5)) })
     end
   end
 
@@ -217,7 +245,7 @@ if not S then
     local id
     for _ = 1, 64 do local c = dict:incr('seq', 1, 0) % 65000 + 1; if dict:add('p:' .. c, '\0', IDLE + 5) then id = c; break end end
     if not id then wb:send_close(1013, 'full'); return end
-    local me = { id = id, name = '', s = -1, fl = 0, talk = 0, raw = nil, x = 0, y = 0, z = 0, bit = 0, seen = ngx.now(), alive = true, out = {}, known = {}, ver = -1, sem = semaphore.new(), tokens = BURST, at = ngx.now() }
+    local me = { id = id, name = '', s = -1, fl = 0, talk = 0, raw = nil, x = 0, y = 0, z = 0, yaw = 0, bit = 0, seen = ngx.now(), alive = true, out = {}, known = {}, ver = -1, sem = semaphore.new(), tokens = BURST, at = ngx.now() }
     S.conns = S.conns + 1
     if not S.timer then S.timer = true; ngx.timer.every(SNAP, snapshot) end
     local th = ngx.thread.spawn(sender, wb, me)
@@ -241,7 +269,7 @@ if not S then
     end)
     me.alive = false; me.sem:post(1); ngx.thread.wait(th)
     S.conns = S.conns - 1
-    dict:delete('p:' .. id); dict:delete('q:' .. id); dict:delete('by:' .. id)
+    dict:delete('p:' .. id); dict:delete('q:' .. id); dict:delete('by:' .. id); dict:delete('e:' .. id)
     pcall(wb.send_close, wb)
   end
 

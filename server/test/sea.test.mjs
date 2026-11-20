@@ -3,18 +3,19 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 // SEA_PORT=8080 npm test: against a server that is already running there (the OpenResty one, see ../openresty)
-const ext = +process.env.SEA_PORT, port = ext || 8799, srv = ext ? { kill() {} } : spawn(process.execPath, [fileURLToPath(new URL('./local.mjs', import.meta.url))], { env: { ...process.env, PORT: port }, stdio: 'ignore' });
+// SEA_URL=https://sea.example.workers.dev npm test: against a server anywhere (a deployed Worker)
+const url = (process.env.SEA_URL || '').replace(/\/+$/, ''), ext = +process.env.SEA_PORT, port = ext || 8799, base = url || 'http://localhost:' + port, srv = ext || url ? { kill() {} } : spawn(process.execPath, [fileURLToPath(new URL('./local.mjs', import.meta.url))], { env: { ...process.env, PORT: port }, stdio: 'ignore' });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0; const ok = (what, cond) => { console.log((cond ? 'ok   ' : 'FAIL ') + what); if (!cond) failed++; };
 function player(name, s, x, y, z) {
-  const ws = new WebSocket('ws://localhost:' + port + '/ws'); ws.binaryType = 'arraybuffer';
-  const p = { ws, json: [], near: new Map(), s, x, y, z };
+  const ws = new WebSocket(base.replace(/^http/, 'ws') + '/ws'); ws.binaryType = 'arraybuffer';
+  const p = { ws, json: [], near: new Map(), s, x, y, z, yaw: 0 };
   ws.on('message', (d, bin) => {
     if (!bin) { p.json.push(JSON.parse(d.toString())); return; }
     const v = new DataView(d), n = v.getUint16(2, true); p.near = new Map();
     for (let i = 0; i < n; i++) { const o = 4 + i * 30; p.near.set(v.getUint16(o, true), { s: v.getUint8(o + 2), flags: v.getUint8(o + 3), x: v.getFloat32(o + 6, true) }); }
   });
-  p.state = (flags = 0) => { const b = new ArrayBuffer(28), v = new DataView(b); v.setUint8(0, 1); v.setUint8(1, p.s); v.setUint8(2, flags); [p.x, p.y, p.z, 0, 0, 1].forEach((f, i) => v.setFloat32(4 + i * 4, f, true)); ws.send(b); };
+  p.state = (flags = 0) => { const b = new ArrayBuffer(28), v = new DataView(b); v.setUint8(0, 1); v.setUint8(1, p.s); v.setUint8(2, flags); [p.x, p.y, p.z, p.yaw, 0, 1].forEach((f, i) => v.setFloat32(4 + i * 4, f, true)); ws.send(b); };
   p.say = (m) => ws.send(JSON.stringify(m));
   p.got = (t) => p.json.filter((m) => m.t === t);
   ws.on('open', () => { p.say({ t: 'hi', name }); p.state(); });
@@ -37,10 +38,25 @@ try {
   b.say({ t: 'ate' }); await wait(200);
   ok('the eaten one feeds the biter', a.got('fed').length === 1 && a.got('fed')[0].gain > 0.1);
   b.say({ t: 'ate' }); await wait(200); ok('but only once', a.got('fed').length === 1);
-  const st = await (await fetch('http://localhost:' + port + '/status')).json(); ok('status counts three', st.players === 3);
+  const st = await (await fetch(base + '/status')).json(); ok('status counts three', st.players === 3);
   b.ws.close(); await wait(300);
   ok('leaving is announced and the player is gone from the packets', a.got('out').some((m) => m.id === idb) && !a.near.has(idb));
   a.ws.close(); c.ws.close();
+  // a fight of crabs: flags 1 claws up (blocking), 4 and 8 claws lost, 16 beaten and on its back
+  const k1 = player('Crab one', 0, 3000, -20, 0), k2 = player('Crab two', 0, 3000.6, -20, 0); await wait(500);
+  const id1 = k1.got('hi')[0].id, id2 = k2.got('hi')[0].id, strike = async (p, to, flags) => { if (flags !== undefined) { p.state(flags); await wait(150); } p.say({ t: 'bite', to }); await wait(450); };
+  await strike(k1, id2); ok('a crab strikes a crab for 0.14', k2.got('bit').length === 1 && k2.got('bit')[0].dmg === 0.14 && !k2.got('bit')[0].blk);
+  await strike(k1, id2, 4); ok('with one claw for 0.085', k2.got('bit').length === 2 && k2.got('bit')[1].dmg === 0.085);
+  await strike(k1, id2, 12); ok('with no claws not at all', k2.got('bit').length === 2);
+  await strike(k1, id2, 1); ok('nor with its claws up', k2.got('bit').length === 2);
+  k2.state(1); await wait(150); await strike(k1, id2, 0); ok('claws held up block most of a strike', k2.got('bit').length === 3 && k2.got('bit')[2].dmg === 0.042 && k2.got('bit')[2].blk === 1);
+  k2.state(13); await wait(150); await strike(k1, id2); ok('but not without claws', k2.got('bit').length === 4 && k2.got('bit')[3].dmg === 0.14 && !k2.got('bit')[3].blk);
+  k2.state(16); await wait(150); await strike(k1, id2); ok('a beaten crab is eaten, and the eater fed', k2.got('eaten').length === 1 && k2.got('eaten')[0].from === id1 && k1.got('fed').length === 1 && k1.got('fed')[0].gain === 0.45 && k2.got('bit').length === 4);
+  await strike(k1, id2); ok('once', k2.got('eaten').length === 1 && k1.got('fed').length === 1);
+  await strike(k2, id1); ok('and a beaten crab does not strike', k1.got('bit').length === 0);
+  k1.yaw = Math.PI; k2.state(0); await wait(150); await strike(k1, id2, 0); ok('a crab with its back to the other does not strike', k2.got('bit').length === 4); k1.yaw = 0;
+  k1.x = 2998.6; k1.state(0); k2.state(0); await wait(200); await strike(k1, id2); ok('a crab two metres away does not reach', k2.got('bit').length === 4);
+  k1.ws.close(); k2.ws.close();
   // a crowd in one place: each is told of the 40 nearest only; the sea takes 100 and turns the next away
   const crowd = []; for (let i = 0; i < 100; i++) crowd.push(player('C' + i, 6, 5000 + i, -20, 0));
   await wait(1500);

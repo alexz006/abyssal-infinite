@@ -68,7 +68,9 @@ camera, the ones you leave behind are removed, and new ones arrive from beyond t
 species keeps to its own depths, so you meet different animals as you go deeper. Hunters chase anything they can eat
 (up to 60% of their own length; the whale hunts nothing), prey bolts, and bots eat what they catch. The crab walks
 the floor and steps off ledges, the dolphin leaps, and the whale comes up to the surface. The schools of small fish
-from the original are still there, unchanged.
+from the original are still there, unchanged. Where crabs live, a few are always kept within 36 m of the camera
+(four, or six when you play a crab; the end of `botPopulate`): if the company is full, the farthest other bot
+makes room for them.
 
 Sizes: `real` in `CRIT` is the animal's real length, and that is the number shown to the player. The game draws
 everything at `GSCALE` = 1.87 times life size, to match the original's manta (8.4 m across, where a real oceanic
@@ -110,8 +112,19 @@ of the same species. The left mouse button uses the mouth:
 
 - A hunter eats any creature within reach that is no longer than 60% of its own length.
 - The fry and the chromis pick at plankton. The whale filters it as it swims.
-- The crab strikes another crab nearby, and the other crab fights back. Either can lose a claw until its next life.
-  A beaten crab ends up on its back and can be eaten. With no crab nearby, the crab picks food off the floor.
+- The crab strikes another crab nearby, and the other crab fights back. With no crab nearby, it picks food off the
+  floor.
+
+**Crab fights** work the same against a bot and against another player. A strike takes 14% of the other crab's
+health (8.5% if the striker has lost a claw) and shoves it back a little. It lands only where the claws can touch:
+the other crab has to be ahead of the striker and within 0.53 m, middle to middle (face to face, claws on claws). A crab that strikes or blocks
+turns its claws to where the view looks. Holding the right mouse button raises the
+claws: a crab with its claws up takes only 30% of a strike and cannot lose a claw, but cannot strike either. An
+unblocked strike tears off a claw one time in ten; a crab with no claws cannot strike or block. A lost claw grows
+back in 45 seconds, one at a time. A crab whose health runs out lies on its back for eight seconds. If the winner
+eats it in that time, it dies and the winner is fed; if not, it gets back up with a quarter of its health and
+without its claws. A crab's next life starts weak, with 30% of its health and one claw, so the loser cannot come
+straight back at a wounded winner. The numbers are `STRIKE`, `BLOCK`, `CLAWP`, `CLAWT`, `DOWN`, `REACH` and `FRONT` in `bots.js`, and the same ones in both servers for fights between players.
 
 Other creatures treat you as one of their own: hunters chase and bite you, prey flees from you. A hunter loses
 track of prey it cannot see, so you can hide behind rock, and also behind things you can swim through: a loose
