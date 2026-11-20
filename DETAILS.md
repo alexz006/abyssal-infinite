@@ -153,7 +153,9 @@ distant creature is a wide blur that tightens into a sharp dot as it gets closer
 the disc. When you play a creature, the color tells you what each echo means to your species: something you can eat,
 something that can eat you, or neither. With the free camera, the color runs from pale for harmless animals through
 amber to red for the big hunters. Other players are labeled with their names. A green crescent at
-the rim shows the way home once you are more than 50 m from it.
+the rim shows the way home once you are more than 50 m from it. The disc's range is 100 m; the `Z` key, or a tap on
+the disc, brings it in to 50 m and to 25 m, to tell apart what is close (`sonarZoom` in `bots.js`; the range is
+written at the bottom of the disc).
 
 ## Multiplayer
 
@@ -181,8 +183,8 @@ The **Detail** row in the menu's **Graphics settings** panel picks the detail le
 | Level | What it is | Picked on a first visit for |
 |---|---|---|
 | **High** | The full scene | Computers |
-| **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | Phones with 8 GB of memory |
-| **Low** | A quarter of the leaves, no anti-aliasing, coarser rocks and corals, simpler lighting, 480p to start with | Other phones, and computers with 4 GB of memory or less |
+| **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | - |
+| **Low** | Every graphics setting at its least: the 80 m draw distance, a quarter of the leaves, the smallest shadow map, no anti-aliasing, no light rays, no creature shadows; coarser rocks and corals, 480p to start with | Phones, and computers with 4 GB of memory or less |
 
 If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, water and sound settings for the next visit.
 
@@ -190,8 +192,8 @@ If loading crashes the tab, or the graphics driver gives up, the page starts aga
 
 The **Graphics settings** panel in the menu overrides what the detail level chose: draw distance (80 / 105 / 135 m),
 resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow map size, anti-aliasing, light rays
-and creature shadows. Choosing a detail level resets them. The settings take effect after a reload. If you leave the
-panel with changes you have not applied, the game asks whether to apply them, discard them or keep editing. They are
+and creature shadows. Choosing a detail level resets them. The settings take effect after a reload: when you leave the
+panel with changes, the game asks whether to apply them and reload, discard them or keep editing. They are
 stored in `localStorage.abyssalGfx` (see `source/src/quality.js`).
 
 The draw distance is a single number for everything: the water's haze closes in at that distance, and every draw
@@ -201,7 +203,7 @@ loaded, so nothing pops into view.
 ## Sound settings
 
 The **Sound settings** panel in the menu has five levels, each off / low / medium / high. Changes are heard right
-away:
+away. Until you set them, the volume and the water are low, the music and the sea life medium, the gurgling high:
 
 - the overall volume;
 - the water (rumble, surface wash, rush);
@@ -219,7 +221,8 @@ and the state of the sound - what a phone has no console for (`DBG` and `dbg` in
 
 Two things Safari needed, kept in mind when changing the code: a pipeline must not be given an override constant
 that its vertex stage does not use (Safari fails to build it, and one failed pipeline leaves every frame black), and
-after the screen was locked the sound has to be restarted from a tap (`sound` in `source/src/audio.js`).
+after the screen was locked the sound has to be restarted from a tap (`sound` in `source/src/audio.js`). With the
+phone in silent mode the sound plays in Chrome but not in Safari.
 
 ## Controls
 
@@ -236,13 +239,22 @@ after the screen was locked the sound has to be restarted from a tap (`sound` in
 | Jump to a viewpoint | `1` to `6` in the home region, `7` to `0` in the deep |
 | Menu | `Esc` releases the mouse and opens the menu with the list of controls; **Resume** takes you back. The menu also has the creature button, and your name when there is a multiplayer server |
 | Sound on / off | `M` (sound starts when you dive in) |
+| Sonar range | `Z` |
 | Performance stats | `H` |
+
+**On a phone** one finger does the swimming: hold it down to swim forward, slide it to steer, add a second finger to
+go faster. While you play a creature, three round buttons sit beside the sonar: the mouth (**Bite**, or **Strike**
+for the crab), **Gurgle** (held; **Block** for the crab) and **Burst**. The **Controls** row of the menu switches to
+a **Joystick** instead: the left thumb is a stick to swim by - forward, back and sideways, and faster when pushed far
+out - and the right thumb turns the view. The **−** and **+** buttons beside the menu button move the camera further and
+nearer, and a short tap on the sonar changes its range. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
+`source/src/main.js`. On a first visit a phone starts at the Low detail level.
 | Detail level, water, graphics | **Graphics settings** in the menu (applying them reloads the page) |
 | Volume of water, music, sea life, gurgling | **Sound settings** in the menu |
 
 The seabed, cliffs and arches are solid: you glide along the rock instead of swimming into it, and you still fit through every tunnel and arch. You can swim through kelp, plants, corals, sponges, loose rocks, the floating boulders and the whale tail. The ship stops creatures at its timbers, but the free camera passes through it.
 
-**On a touchscreen:** hold one finger down to swim forward and slide it to steer. Put a second finger down to go faster. The `≡` button in the corner opens the menu. Phones always show the scene in landscape and start on Low or Medium detail. (Touch support is experimental.)
+**On a touchscreen:** hold one finger down to swim forward and slide it to steer. Put a second finger down to go faster. The menu button in the corner opens the menu. Phones always show the scene in landscape and start on Low detail. (Touch support is experimental.)
 
 ## Make it your own
 

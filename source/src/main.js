@@ -158,7 +158,7 @@ moveWindow(F[CX], F[CZ]);
 // them together (1 = 135 m): DET0 is the distance setting, and frame() draws it in further while tiles are late.
 const PIXMAX = 3840 * 2160, // auto never draws more than this (it was 2560 x 1440: an ultrawide window stayed at about 90%)
    PIXMIN = mob ? 25e4 : 5e5, DET0 = VIEWD / 135;
-let W = 0, H = 0, DW = 0, DH = 0, pix = RESQ ? 1e9 : +SV[1] || (LV > 1 ? 41e4 : mob ? 1280 * 720 : PIXMAX), det = DET0, dynN = 0, dynT = 0, dynG = 0, dynGN = 0, dynBad = 0, dynOk = 0, dynWait = 3;
+let W = 0, H = 0, DW = 0, DH = 0, pix = RESQ ? 1e9 : +SV[1] || (LV > 1 ? 41e4 : mob ? 1280 * 720 : PIXMAX), det = DET0, dynN = 0, dynT = 0, dynG = 0, dynGN = 0, dynBad = 0, dynOk = 0, dynWait = 3, dynFast = 1;
 let passScene, passRays, passBlur, bgBlur, passPost, bgRays, bgPost, bloomPass = [], bloomBG = [], targets = [];
 const NB = 6;
 function resize() {
@@ -351,15 +351,16 @@ function frame(now) {
   if (!OFF) requestAnimationFrame(frame); // offscreen: dev.js steps the frames
   const dtr = now - F[LAST]; F[LAST] = now;
   let dt = dtr / 1000; if (dt > 0.1) dt = 0.1;
-  // Dynamic resolution for 60 fps: every second (0.4 s behind the menu) scale the load by k
-  if (!RESQ && dtr < 1e3 && (dynT += dtr) > 0 && (dynN++, dynT > (menu ? 400 : 1000))) {
+  // Dynamic resolution for 60 fps: every second (0.4 s behind the menu, and until the first period at full pace) scale the load by k
+  if (!RESQ && dtr < 1e3 && (dynT += dtr) > 0 && (dynN++, dynT > (menu || dynFast ? 400 : 1000))) {
     const a = dynT / dynN, g = dynGN ? dynG / dynGN : 0; let k = 1;
     // with GPU timing: keep it between 9.8 and 13.6 ms
     if (g) { if (g > 13.6 || g < 9.8) k = 11.7 / g; }
     // without: slow for two periods in a row means fewer pixels, and twice as long before trying to go back up
-    else if (a > 17.6) { dynOk = 0; if (++dynBad > 1) { k = 15 / a; dynBad = 0; dynWait = min(dynWait * 2, 60); } }
+    // (at the start one slow period is enough, so a visit does not begin with seconds of stutter)
+    else if (a > 17.6) { dynOk = 0; if (dynFast) k = 15 / a; else if (++dynBad > 1) { k = 15 / a; dynBad = 0; dynWait = min(dynWait * 2, 60); } }
     // at the display's rate there is no telling if there is room, so try a little more now and then
-    else { dynBad = 0; if (a < 12.5) k = 15 / a; else if (++dynOk > dynWait) { k = 1.17; dynOk = 0; } }
+    else { dynFast = dynBad = 0; if (a < 12.5) k = 15 / a; else if (++dynOk > dynWait) { k = 1.17; dynOk = 0; } }
     k = k < 0.5 ? 0.5 : k > 1.7 ? 1.7 : k; const top = min(PIXMAX, DW * DH), was = pix;
     if (!RESQ) { pix = min(pix, top) * k; pix = pix < PIXMIN ? PIXMIN : pix > top ? top : pix; }
     if (was !== pix) keep('abyssal', [LV, pix < top ? pix | 0 : '']); // nothing kept at full resolution
@@ -367,8 +368,8 @@ function frame(now) {
   }
   F[TIME] += dt;
   {
-    // touch: holding the finger away from where it went down keeps turning, like a joystick
-    if (tId >= 0) {
+    // touch, one finger: holding the finger away from where it went down keeps turning, like a joystick
+    if (tId >= 0 && !TJ) {
       const tr = 4 / (innerWidth < innerHeight ? innerWidth : innerHeight); let jx = (tx - tx0) * tr, jy = (ty - ty0) * tr;
       jx = jx > 1 ? 1 : jx < -1 ? -1 : jx; jy = jy > 1 ? 1 : jy < -1 ? -1 : jy;
       lkx += jx * 1.5 * dt; lky += jy * dt;
@@ -377,14 +378,17 @@ function frame(now) {
     const kq = 1 - exp(-dt * 30); lkx += mdx * 0.0022; lky += mdy * 0.0022; mdx = 0; mdy = 0;
     const ax = lkx * kq, ay = lky * kq; lkx -= ax; lky -= ay; l2x += ax; l2y += ay;
     const dyw = l2x * kq, dpt = l2y * kq; l2x -= dyw; l2y -= dpt;
+    // what the fingers ask for: one finger swims ahead (a second one: faster); the stick swims any way, and faster pushed far out
+    const jm = hypot(jmx, jmy), jk = jm > 1 ? 1 / jm : 1, tf = TJ ? -jmy * jk : tId >= 0 ? 0.7 : 0, tr = TJ ? jmx * jk : 0, tfast = TJ ? jm > 1.7 : tN > 1;
     if (me) me.gur = !menu && kg > 0;
+    if (kz && me) meZoom = clamp(meZoom + kz * dt * 1.3, 0, 2); // a phone's camera button is held
     meAway = menu; meHeld = !menu && kbt > 0;
     netFrame(dt);
     if (me && menu) { /* the creature waits while the menu is up */ }
-    else if (me) meStep(dt, dyw, dpt, tId >= 0 ? 0.7 : kf - kb, kr - kl, ku - kd, ks || tN > 1); // playing a creature (bots.js)
+    else if (me) meStep(dt, dyw, dpt, tf || kf - kb, tr || kr - kl, ku - kd, ks || tfast); // playing a creature (bots.js)
     else {
     const yaw = F[YAW] + dyw; let pitch = F[PIT] - dpt; pitch = pitch < -1.55 ? -1.55 : pitch > 1.55 ? 1.55 : pitch;
-    const sp = ks || tN > 1 ? 26 : 7, k = 1 - exp(-dt * 4.5), mf = tId >= 0 ? 0.7 : kf - kb, mr = kr - kl, mu = ku - kd, cp = cos(pitch), sy = sin(yaw), cw = cos(yaw);
+    const sp = ks || tfast ? 26 : 7, k = 1 - exp(-dt * 4.5), mf = tf || kf - kb, mr = tr || kr - kl, mu = ku - kd, cp = cos(pitch), sy = sin(yaw), cw = cos(yaw);
     const vx = F[VX] + ((sy * cp * mf + cw * mr) * sp - F[VX]) * k, vy = F[VY] + ((sin(pitch) * mf + mu) * sp - F[VY]) * k, vz = F[VZ] + ((-cw * cp * mf + sy * mr) * sp - F[VZ]) * k;
     let x = F[CX] + vx * dt, y = F[CY] + vy * dt; const z = F[CZ] + vz * dt, ox = F[CX], oy = F[CY], oz = F[CZ];
     if (x > SHOREX) x = SHOREX; // the beach
@@ -426,6 +430,7 @@ const key = (e, v) => {
     default: if (v && !e.repeat) {
       if (e.code === 'KeyH') { hud = !hud; hTot = 0; hPer = 1e9; info.textContent = ''; }
       else if (e.code === 'KeyM') mute();
+      else if (e.code === 'KeyZ') sonarZoom();
       else if (e.code === 'Escape') ui(true);
       else if (e.code >= 'Digit1' && e.code <= 'Digit6') { lookAt(...POSES[e.code.charCodeAt(5) - 49]); meWarp(); }
       else if (/^Digit[7890]$/.test(e.code)) { lookAt(...DEEPS[(e.code.charCodeAt(5) - 45) % 10]); meWarp(); }
@@ -435,9 +440,9 @@ const key = (e, v) => {
 // behind the menu only the stats and mute keys work
 addEventListener('keydown', (e) => { if (e.target && e.target.tagName === 'INPUT') return; if (menu && e.code !== 'KeyH' && e.code !== 'KeyM') return; sound(); key(e, 1); });
 addEventListener('keyup', (e) => key(e, 0));
-const release = () => { kf = kb = kl = kr = ku = kd = ks = kg = kbt = 0; tId = -1; tN = 0; };
+const release = () => { kf = kb = kl = kr = ku = kd = ks = kg = kbt = 0; tId = jId = sId = -1; tN = jmx = jmy = kz = 0; $('tj').style.display = ''; };
 // the right mouse button: the creature in play gurgles for as long as it is held; the left: it bites, strikes, feeds (bots.js)
-let kg = 0, kbt = 0;
+let kg = 0, kbt = 0, kz = 0;
 addEventListener('mousedown', (e) => { if (e.button === 0 && !menu && document.pointerLockElement === canvas) kbt = 1; });
 addEventListener('mouseup', (e) => { if (e.button === 0) kbt = 0; });
 addEventListener('mousedown', (e) => { if (e.button === 2 && !menu) { sound(); kg = 1; } });
@@ -447,18 +452,48 @@ const capture = () => { sound(); const p = canvas.requestPointerLock({ unadjuste
 canvas.addEventListener('click', capture);
 addEventListener('mousemove', (e) => { if (document.pointerLockElement === canvas) { mdx += e.movementX; mdy += e.movementY; } });
 addEventListener('blur', release);
+// Touch, two ways (TJ, the Controls row of a phone's menu, localStorage.abyssalTouch):
+//   one finger (0): hold to swim forward, slide to steer, a second finger to go faster;
+//   joystick (1): a finger on the left half is a stick to swim by (jmx, jmy: how far it is pushed, 1 = the ring),
+//   one on the right half turns the view.
+// Only the fingers on the scene count: the round action buttons take their own.
+// A short tap on the sonar's disc is its next range (sId: the finger that went down there, sAt, sx, sy: when and
+// where); held longer or slid, it is a finger like any other.
+let TJ = 0, jId = -1, jx0 = 0, jy0 = 0, jmx = 0, jmy = 0, sId = -1, sAt = 0, sx = 0, sy = 0;
+try { TJ = +localStorage.abyssalTouch === 1 ? 1 : 0; } catch {}
 const touch = (e) => {
-  e.preventDefault(); sound(); tN = e.touches.length;
+  e.preventDefault(); sound(); const T = e.targetTouches, r = rot.matches, tj = $('tj'); tN = T.length;
+  // the touch axes turn with the page when it lies on its side
+  const X = (t) => (r ? t.clientY : t.clientX), Y = (t) => (r ? innerWidth - t.clientX : t.clientY);
   // iOS can hand out negative identifiers, but a negative tId means "no finger": compare them as unsigned
-  let f = null, first = false; for (let i = 0; i < tN; i++) if (e.touches[i].identifier >>> 0 === tId) f = e.touches[i];
-  if (!f) { tId = -1; if (tN) { f = e.touches[0]; tId = f.identifier >>> 0; first = true; } }
+  const c = e.changedTouches[0];
+  if (e.type === 'touchstart') { const b = $('so').getBoundingClientRect(); if (c.clientX > b.left && c.clientX < b.right && c.clientY > b.top && c.clientY < b.bottom) { sId = c.identifier >>> 0; sAt = e.timeStamp; sx = c.clientX; sy = c.clientY; } }
+  else if (e.type === 'touchend' && c.identifier >>> 0 === sId) { sId = -1; if (e.timeStamp - sAt < 300 && hypot(c.clientX - sx, c.clientY - sy) < 12) sonarZoom(); }
+  let f = null, j = null, first = false;
+  for (let i = 0; i < tN; i++) { const id = T[i].identifier >>> 0; if (id === tId) f = T[i]; else if (id === jId) j = T[i]; }
+  if (!f) tId = -1; if (!j) jId = -1;
+  const half = (r ? innerHeight : innerWidth) / 2, side = min(innerWidth, innerHeight);
+  if (TJ) {
+    const R = side * 0.14;
+    for (let i = 0; i < tN; i++) {
+      const t = T[i], id = t.identifier >>> 0; if (id === tId || id === jId) continue;
+      if (X(t) < half) { if (jId < 0) { jId = id; j = t; jx0 = X(t); jy0 = Y(t); tj.style.left = jx0 + 'px'; tj.style.top = jy0 + 'px'; } }
+      else if (tId < 0) { tId = id; f = t; first = true; }
+    }
+    if (j) { jmx = (X(j) - jx0) / R; jmy = (Y(j) - jy0) / R; const k = R / max(1, hypot(jmx, jmy)); tj.firstChild.style.transform = 'translate(' + jmx * k + 'px,' + jmy * k + 'px)'; } else jmx = jmy = 0;
+    tj.style.display = j ? 'block' : '';
+  } else if (!f && tN) { f = T[0]; tId = f.identifier >>> 0; first = true; }
   if (f) {
-    // the touch axes turn with the page when it lies on its side
-    const x = rot.matches ? f.clientY : f.clientX, y = rot.matches ? -f.clientX : f.clientY, s = 1100 / min(innerWidth, innerHeight);
+    const x = X(f), y = Y(f), s = 1100 / side;
     if (first) { tx0 = x; ty0 = y; } else { mdx += (x - tx) * s; mdy += (y - ty) * s; } // the view follows the finger at once
     tx = x; ty = y;
   }
 };
+// the round buttons: the mouth (the left mouse button), the gurgle (the right one, held), a burst (Shift twice)
+[['t1', (v) => { kbt = v; }], ['t2', (v) => { kg = v; }], ['t3', (v) => { if (v) meBurst(); }]].forEach(([id, fn]) => {
+  const b = $(id), h = (v) => (e) => { e.preventDefault(); sound(); b.className = v ? 'on' : ''; fn(v); };
+  b.addEventListener('touchstart', h(1), { passive: false }); b.addEventListener('touchend', h(0)); b.addEventListener('touchcancel', h(0));
+});
 for (const n of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) canvas.addEventListener(n, touch, { passive: false });
 
 // ---------------------------------------------------------------- menu
@@ -480,11 +515,11 @@ const go = () => {
 };
 bDive.onclick = go; $('o').onclick = () => ui(true);
 // graphics panel: opens in place of the list of controls. Rows: detail level, water, then the settings of GFX.
-// Choices are only marked until Apply, which keeps them and reloads (they are compiled into the shaders and the
+// Choices are only marked until the panel is left: the question asked then keeps them and reloads (they are compiled into the shaders and the
 // world's buffers). Picking a detail level marks the settings that level comes with.
 {
   const was = [2 - LV, WQ, ...GFX], pick = was.slice(), rows = [...$('y').querySelectorAll('p')];
-  const mark = () => { rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; })); $('z').hidden = pick.join() === was.join(); fitMenu(); };
+  const mark = () => { rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; })); };
   rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { pick[k] = i; if (!k) pick.splice(2, 7, ...gdef(2 - i)); mark(); }; }));
   // the two settings buttons share a row; each opens its panel in place of the list of controls and closes it again
   const panel = (id) => {
@@ -498,21 +533,31 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
   const leave = (then) => { if ($('y').hidden || pick.join() === was.join()) then(); else { after = then; $('u').hidden = false; $('ua').focus(); } };
   $('ud').onclick = () => { $('u').hidden = true; pick.splice(0, pick.length, ...was); mark(); after(); };
   $('uk').onclick = () => { $('u').hidden = true; };
-  $('ua').onclick = () => $('z').onclick();
+  $('ua').onclick = () => {
+    if (pick[0] !== was[0] || pick[3] !== was[3]) keep('abyssal', 2 - pick[0]); // another level or resolution: the tuned resolution is forgotten
+    keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2).join()); location.reload();
+  };
   $('x').onclick = () => leave(() => panel('y')); $('xs').onclick = () => leave(() => panel('ys')); bDive.onclick = () => leave(go);
   // the sound panel: a choice is heard at once (audio.js)
   const srows = [...$('ys').querySelectorAll('p')], smark = () => srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === SND[k] ? 'on' : ''; }));
   srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { SND[k] = i; sound(); sndApply(); smark(); }; }));
   smark();
-  $('z').onclick = () => {
-    if (pick[0] !== was[0] || pick[3] !== was[3]) keep('abyssal', 2 - pick[0]); // another level or resolution: the tuned resolution is forgotten
-    keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2).join()); location.reload();
-  };
   mark();
 }
+// a phone's Controls row: taken at once, and the hint under it says how that way works
+{
+  const bs = [...$('tc').querySelectorAll('button')], mk = () => { bs.forEach((b, i) => { b.className = i === TJ ? 'on' : ''; }); $('h').textContent = TJ ? 'Left thumb swims · right thumb looks · push the stick far to go faster' : 'Hold to swim forward · slide to steer · second finger to go faster'; };
+  bs.forEach((b, i) => { b.onclick = () => { TJ = i; keep('abyssalTouch', i); release(); mk(); fitMenu(); }; }); mk();
+}
+// a phone's two buttons beside the menu button: the camera further from the creature in play, and nearer to it (the mouse wheel)
+// Held, they keep moving it (kz, see frame()), also while other fingers swim and steer; let go, the distance is kept.
+[['tm', 1], ['tp', -1]].forEach(([id, d]) => {
+  const b = $(id), h = (v) => (e) => { e.preventDefault(); kz = v; meZoomBy(v * 0.08); };
+  b.addEventListener('touchstart', h(d), { passive: false }); b.addEventListener('touchend', h(0)); b.addEventListener('touchcancel', h(0));
+});
 pickInit();
 // the line at the bottom left: who the player is (the score will stand here too)
-function hudWho() { $('hw').innerHTML = me ? 'Playing as <b>' + CRITNAME[me.s] + '</b>' : 'Free camera'; $('st').style.display = $('hb').style.display = me ? '' : 'none'; if (!me) $('hm').textContent = ''; }
+function hudWho() { $('hw').innerHTML = me ? 'Playing as <b>' + CRITNAME[me.s] + '</b>' : 'Free camera'; $('st').style.display = $('hb').style.display = me ? '' : 'none'; $('tb').className = $('tz').className = me ? 'c' : ''; if (me) { $('t1').textContent = me.s === CRAB ? 'Strike' : 'Bite'; $('t2').textContent = me.s === CRAB ? 'Block' : 'Gurgle'; } if (!me) $('hm').textContent = ''; }
 // the mouse wheel: the camera nearer to the creature in play, or further from it
 addEventListener('wheel', (e) => { if (!menu && me) meZoomBy(e.deltaY > 0 ? 0.12 : -0.12); }, { passive: true });
 document.addEventListener('pointerlockchange', () => ui(!document.pointerLockElement));

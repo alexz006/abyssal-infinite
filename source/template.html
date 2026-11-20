@@ -13,7 +13,7 @@ body {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%; margin: 0; overflow: hidden;
   background: radial-gradient(#0b3a4d, #03131c 70%);
   font: 700 clamp(13px, .7vw + .9vh, 36px)/1.4 system-ui, sans-serif; color: #e8fbff;
-  -webkit-user-select: none; user-select: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 /* a phone held upright gets the whole page turned on its side, so the scene is always landscape */
 @media (orientation: portrait) and (pointer: coarse) {
@@ -83,15 +83,14 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 #y, #ys { display: grid; gap: .3em; } #y[hidden], #ys[hidden] { display: none; }
 #xr { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
 #x, #xs { padding: .7em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
-#z { padding: .7em; background: linear-gradient(#9ff6ff, #19c3d6); }
 
 /* detail level: three buttons in a row, the current one lit */
-#y p, #ys p { display: flex; align-items: center; gap: .4em; padding: .4em; border-radius: .7em; background: #03131cb3; }
-#y span, #ys span { flex: 1.15; color: #7ff3ff; white-space: nowrap; }
+#y p, #ys p, #tc { display: flex; align-items: center; gap: .4em; padding: .4em; border-radius: .7em; background: #03131cb3; }
+#y span, #ys span, #tc span { flex: 1.15; color: #7ff3ff; white-space: nowrap; }
 #y .w { white-space: normal; line-height: 1.15; }
-#y p button, #ys p button { flex: 1; min-width: 0; padding: .5em 0; background: none; box-shadow: none; color: #e8fbff; letter-spacing: .08em; }
-#y p button:hover, #ys p button:hover { background: #7ff3ff33; }
-#y p .on, #ys p .on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; pointer-events: none; }
+#y p button, #ys p button, #tc button { flex: 1; min-width: 0; padding: .5em 0; background: none; box-shadow: none; color: #e8fbff; letter-spacing: .08em; }
+#y p button:hover, #ys p button:hover, #tc button:hover { background: #7ff3ff33; }
+#y p button.on, #ys p button.on, #tc button.on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; pointer-events: none; }
 
 /* list of controls: two groups, key caps right-aligned against their labels */
 #k { display: flex; justify-content: center; gap: 2em; text-align: left; }
@@ -102,7 +101,18 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
   min-width: 1.1em; padding: .2em .5em; border-radius: .35em; background: #e8fbff;
   box-shadow: inset 0 -.15em #0004; color: #03222d; text-align: center;
 }
-#h { display: none; }
+#h, #tc { display: none; }
+#tc { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; } #tc button { padding: .9em 0; }
+/* phones, playing a creature: three round buttons beside the sonar (bite, gurgle, burst), and the joystick's ring
+   where the left thumb went down (the Controls row of the menu) */
+#tb { position: fixed; right: calc(clamp(120px, 26vmin, 320px) + 5vmin); bottom: 3vmin; display: none; gap: 2.5vmin; }
+#tb button { width: 17vmin; height: 17vmin; padding: 0; border-radius: 50%; background: #03222d99; box-shadow: inset 0 0 0 2px #7ff3ff80; color: #e8fbff; font-size: .75em; letter-spacing: .06em; touch-action: none; transform: none; filter: none; }
+#tb .on { background: #19c3d6b3; }
+/* and left of the menu button, the camera further and nearer */
+#tz { position: absolute; top: .6em; right: calc(1.6em + 44px); display: none; gap: .5em; font-size: 1.3em; }
+#tz button { min-width: 44px; min-height: 44px; padding: .3em .6em; background: #03222dd9; box-shadow: inset 0 0 0 2px #7ff3ff, 0 .3em 1em #0009; color: #e8fbff; opacity: .8; touch-action: manipulation; transform: none; filter: none; }
+#tj { position: fixed; display: none; width: 28vmin; height: 28vmin; margin: -14vmin 0 0 -14vmin; border-radius: 50%; background: #03131c40; box-shadow: inset 0 0 0 2px #7ff3ff59; pointer-events: none; }
+#tj i { position: absolute; left: 50%; top: 50%; width: 11vmin; height: 11vmin; margin: -5.5vmin; border-radius: 50%; background: #7ff3ff80; }
 /* the sonar: a disc at the bottom right while diving, all of it on the screen; at the bottom left, who the player is */
 #so { position: fixed; right: 2vmin; bottom: 2vmin; width: clamp(120px, 26vmin, 320px); height: clamp(120px, 26vmin, 320px); pointer-events: none; display: none; }
 #sn { display: block; width: 100%; height: 100%; }
@@ -143,7 +153,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 #cb.n { animation: cb 2.4s ease-in-out infinite; }
 @keyframes cb { 50% { box-shadow: inset 0 0 0 2px #7ff3ff, 0 0 1.6em #19c3d6; } }
 /* a question over the menu (unsaved graphics settings), in the menu's own plates and buttons */
-#u { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; padding: 1em; background: #03131ce6; }
+#u { position: fixed; inset: 0; z-index: 1; display: grid; place-content: center; padding: 1em; background: #03131ce6; }
 #u[hidden] { display: none; }
 #u div { display: grid; gap: .6em; width: 24em; max-width: 100%; padding: 1.4em 1.6em; border-radius: .7em; background: #03222d; box-shadow: inset 0 0 0 2px #7ff3ff59, 0 .6em 2.5em #000c; }
 #u p { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
@@ -177,6 +187,11 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 }
 @media (pointer: coarse) {
   #h { display: block; }
+  #tc { display: flex; }
+  /* the question over the menu is not shrunk with it, and what is pressed in the scene is a fingertip wide */
+  #u { font-size: clamp(13px, .7vw + .9vh, 36px); }
+  #u button, #o { min-width: 44px; min-height: 44px; }
+  .g #tb.c, .g #tz.c { display: flex; }
 }
 
 /* in the scene: a small menu button (hidden while the mouse is captured, Esc does the same) and the stats line */
@@ -184,6 +199,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
   position: absolute; top: .6em; right: .6em; display: none; padding: .3em .6em; background: #03222dd9;
   box-shadow: inset 0 0 0 2px #7ff3ff, 0 .3em 1em #0009; font-size: 1.3em; color: #e8fbff; opacity: .8;
 }
+#o svg, #tz svg { width: 1em; height: 1em; }
 .g #o { display: flex; }
 .p #o { display: none; }
 #i {
@@ -228,7 +244,6 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
         <p><span>Smoothing</span><button>Off</button><button>4x</button></p>
         <p><span>Light rays</span><button>Off</button><button>Low</button><button>High</button></p>
         <p><span class=w>Animal shadows</span><button>Off</button><button>Few</button><button>All</button></p>
-        <button id=z hidden>Apply and reload</button>
       </div>
       <div id=k>
         <p>
@@ -241,14 +256,17 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
           <i><b>1</b>–<b>6</b></i>Home viewpoints
           <i><b>7</b>–<b>0</b></i>Into the deep
           <i><b>Wheel</b></i>Camera nearer, further
+          <i><b>Z</b></i>Sonar range
         </p>
         <p>
           <i><b>Esc</b></i>Menu
           <i><b>M</b></i>Mute
           <i><b>H</b></i>Stats
+          <i><b>F11</b></i>Full screen
         </p>
       </div>
-      <p id=h>Hold to swim forward · slide to steer · second finger to go faster</p>
+      <p id=tc><span>Controls</span><button>One finger</button><button>Joystick</button></p>
+      <p id=h></p>
     </div>
   </div>
   <div id=u hidden><div>
@@ -263,7 +281,10 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
     <a href=https://github.com/alexz006/abyssal-infinite/issues target=_blank><svg viewBox="0 0 24 24"><path d="M4 3.5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-7.6L7 21.5v-4H4a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2z"/></svg>Feedback</a>
   </p>
 </div>
-<button id=o aria-label=Menu>≡</button>
+<button id=o aria-label=Menu><svg viewBox="0 0 24 24"><path d="M3 5h18v2.6H3zm0 5.7h18v2.6H3zm0 5.7h18V19H3z"/></svg></button>
+<div id=tb><button id=t2></button><button id=t1></button><button id=t3>Burst</button></div>
+<div id=tz><button id=tm aria-label="Camera further"><svg viewBox="0 0 24 24"><path d="M4 10.7h16v2.6H4z"/></svg></button><button id=tp aria-label="Camera nearer"><svg viewBox="0 0 24 24"><path d="M10.7 4h2.6v6.7H20v2.6h-6.7V20h-2.6v-6.7H4v-2.6h6.7z"/></svg></button></div>
+<div id=tj><i></i></div>
 <pre id=i></pre>
 <script>
 /*SCRIPT*/

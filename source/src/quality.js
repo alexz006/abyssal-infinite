@@ -2,14 +2,14 @@
 // quality level, chosen before anything is built
 // ============================================================================
 // LV: 0 High, 1 Medium, 2 Low. Medium and Low keep every 2nd / 4th leaf, glint and pebble and bake fewer shadows;
-// Low also drops anti-aliasing and uses coarser meshes, cheaper filtering and fewer light shaft steps.
+// Low also uses coarser meshes and cheaper filtering, and sets every graphics setting to its least (see gdef).
 // localStorage.abyssal = "level,pixels,detail". abyssalLoad is set while the world is built: still set on the next
 // visit means that load crashed the tab, so this one runs a level lower.
 const mob = matchMedia('(pointer:coarse)').matches, mem = navigator.deviceMemory;
 const keep = (k, v) => { try { localStorage[k] = v; } catch {} };
 let SV = [], LV, bad;
 try { SV = (localStorage.abyssal || '').split(','); bad = localStorage.abyssalLoad; } catch {}
-LV = SV[0] ? +SV[0] : mob ? (mem > 7 ? 1 : 2) : mem <= 4 ? 2 : 0;
+LV = SV[0] ? +SV[0] : mob || mem <= 4 ? 2 : 0; // a first visit: Low on every phone (its memory says nothing of its graphics chip)
 if (bad && LV < 2) { SV = [++LV]; keep('abyssal', LV); }
 // water: 0 lagoon (the original's green-blue haze), 1 clear, 2 crystal (blue and far-seeing, like an aquarium; the default);
 // localStorage.abyssalWater. sig: scattering, kd: absorption on the way down, col: the water's colour, amb: skylight
@@ -31,12 +31,12 @@ const WATERQ = [
 let GS = []; try { GS = (localStorage.abyssalGfx || '').split(','); } catch {}
 if (bad) { GS = []; keep('abyssalGfx', ''); } // the last load crashed: back to the level's own settings
 const gset = (i, n, d) => (GS[i] !== undefined && GS[i] !== '' && +GS[i] >= 0 && +GS[i] < n ? +GS[i] : d);
-const gdef = (lv) => [lv > 1 ? 1 : 2, 0, 2 - lv, lv ? 1 : 2, lv > 1 ? 0 : 1, lv > 1 ? 1 : 2, 2 - lv]; // what a detail level picks
+const gdef = (lv) => (lv > 1 ? [0, 0, 0, 0, 0, 0, 0] : [2, 0, 2 - lv, 2 - lv, 1, 2, 2 - lv]); // what a detail level picks: Low is the least of everything
 const GFX = gdef(LV).map((d, i) => gset(i, [3, 4, 3, 3, 2, 3, 3][i], d));
 const VIEWD = [80, 105, 135][GFX[0]], RESQ = [0, 0.5, 0.75, 1][GFX[1]];
 const THIN = 4 >> GFX[2], SHADOW = 1024 << GFX[3], AA = GFX[4] ? 4 : 1, WATER = LV > 1 ? 256 : 512, RAYN = [2, 12, 34][GFX[5]], CSN = [0, 8, 24][GFX[6]];
 // Sound settings (the menu's sound panel): localStorage.abyssalSnd = "volume,water,music,sea life,gurgling", each
 // 0 off, 1 low, 2 medium, 3 high. Water: rumble, surface wash, rush. Music: the drone and the chimes. Sea life: the
 // stock bubbles and the distant whale calls. Gurgling: the players' creatures. They take effect at once.
-const SNDLV = [0, 0.45, 1, 1.8], SND = [2, 2, 2, 2, 2]; let SNDG = null;
+const SNDLV = [0, 0.45, 1, 1.8], SND = [1, 1, 2, 2, 3]; let SNDG = null; // until set: a low volume, quiet water, loud gurgling
 try { (localStorage.abyssalSnd || '').split(',').forEach((v, i) => { if (i < 5 && v !== '' && +v >= 0 && +v <= 3) SND[i] = +v; }); } catch {}

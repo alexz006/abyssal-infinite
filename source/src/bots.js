@@ -441,7 +441,10 @@ function gurDraw(r) { if (gurN) { r.setVertexBuffer(0, gurBuf); r.draw(4, gurN);
 // disc towards its rim. Its colour is what it is to the creature in play: one that can be eaten, one that can eat, or
 // neither; with the free camera, how much of a hunter it is. Close by, the dot's size tells the animal's, and a tick whether it is above or below.
 const SONAR = 100, SONARCOL = { food: [87, 227, 216], danger: [255, 122, 102], other: [157, 180, 200] }, CRITNAME = ['Crab', 'Fry', 'Chromis', 'Sea perch', 'Barracuda', 'Grouper', 'Tuna', 'Dolphin', 'Shark', 'Whale'];
-let sonarT = 0;
+let sonarT = 0, sonarR = SONAR;
+// its range: 100, 50 or 25 m across the disc's radius (the Z key, or a tap on the disc), kept between visits
+try { const v = +localStorage.abyssalSonar; if (v === 50 || v === 25) sonarR = v; } catch {}
+function sonarZoom() { sonarR = sonarR > 30 ? sonarR / 2 : SONAR; keep('abyssalSonar', sonarR); }
 // how much of a hunter each species is: the share of the others it can eat (the free camera's sonar shows that)
 const CRITHUNT = CRIT.map((c, s) => CRIT.filter((q, o) => eats(s, o)).length / 7);
 function sonarDraw(cv, dt) {
@@ -466,11 +469,12 @@ function sonarDraw(cv, dt) {
       x.save(); x.beginPath(); x.arc(cx, cy, R, 0, TAU); x.clip();
       g = x.createRadialGradient(px, py, q, px, py, q + t); g.addColorStop(0, al(0)); g.addColorStop(0.4, al(0.1)); g.addColorStop(0.78, al(0.5)); g.addColorStop(1, al(0.12));
       x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R, 0, TAU); x.fill(); x.restore(); } }
+  x.font = '600 ' + max(9, R * 0.085) + 'px system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = 'rgba(127,243,255,0.5)'; x.fillText(sonarR + ' m', cx, cy + R * 0.86); // the range
   const seen = [];
-  for (const b of bots) { if (b.me) continue; const dx = b.x - ox, dz = b.z - oz, r = hypot(dx, dz); if (r < SONAR) seen.push([r, dx, dz, b]); }
+  for (const b of bots) { if (b.me) continue; const dx = b.x - ox, dz = b.z - oz, r = hypot(dx, dz); if (r < sonarR) seen.push([r, dx, dz, b]); }
   seen.sort((a, b) => b[0] - a[0]); // the far ones first, the near sharp ones over them
   for (const [r, dx, dz, b] of seen) {
-    const d01 = r / SONAR, rim = 1 - pow(max(0, (d01 - 0.72) / 0.28), 1.5) * (1) , px = cx + (dx * rx + dz * rz) * R * 0.9 / SONAR, py = cy - (dx * hx + dz * hz) * R * 0.9 / SONAR;
+    const d01 = r / sonarR, rim = 1 - pow(max(0, (d01 - 0.72) / 0.28), 1.5) * (1) , px = cx + (dx * rx + dz * rz) * R * 0.9 / sonarR, py = cy - (dx * hx + dz * hz) * R * 0.9 / sonarR;
     // playing a creature: what it can eat, what can eat it, the rest. The free camera: from pale for the harmless through amber to red for the great hunters
     const hk = CRITHUNT[b.s], col = me ? SONARCOL[eats(me.s, b.s) ? 'food' : eats(b.s, me.s) ? 'danger' : 'other'] : hk < 0.5 ? [mix(157, 240, hk * 2), mix(180, 190, hk * 2), mix(200, 90, hk * 2)] : [mix(240, 255, hk * 2 - 1), mix(190, 90, hk * 2 - 1), mix(90, 80, hk * 2 - 1)];
     const rgba = (a) => 'rgba(' + round(col[0]) + ',' + round(col[1]) + ',' + round(col[2]) + ',' + a + ')';
