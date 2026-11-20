@@ -32,7 +32,38 @@ if (!adapter) fail('No WebGPU adapter found.');
 $('w').hidden = !!navigator.userAgentData; // only Chromium-based browsers have it
 const hasTS = adapter.features.has('timestamp-query');
 const device = await adapter.requestDevice({ requiredFeatures: hasTS ? ['timestamp-query'] : [] });
-device.addEventListener('uncapturederror', (e) => console.error('GPU: ' + e.error.message));
+// ?debug in the address: what the browser says about its GPU and the first errors, on the page itself (a phone has
+// no console to read them from)
+const DBG = /[?&#]debug/.test(location.href), dbgLog = [];
+const dbg = (m) => {
+  if (!DBG || dbgLog.length > 9) return;
+  dbgLog.push(('' + m).slice(0, 1500));
+  let d = $('dbg'); if (!d) { d = document.createElement('pre'); d.id = 'dbg'; d.style.cssText = 'position:fixed;left:0;top:0;right:0;max-height:70%;overflow:hidden;margin:0;padding:6px;z-index:99;font:10px/1.3 monospace;color:#fff;background:#0008;pointer-events:none;white-space:pre-wrap;word-break:break-all'; body.appendChild(d); }
+  d.textContent = dbgLog.join('\n\n');
+};
+if (DBG) {
+  const i = adapter.info || {};
+  dbg('WebGPU debug · ' + [i.vendor, i.architecture, i.device, i.description].filter(Boolean).join(' / ') + '\n' + navigator.userAgent + '\nfeatures: ' + [...adapter.features].join(' ') + '\ncanvas: ' + navigator.gpu.getPreferredCanvasFormat() + ', dpr ' + devicePixelRatio + ', ' + innerWidth + 'x' + innerHeight);
+  addEventListener('error', (e) => dbg('JS: ' + e.message + ' @' + e.lineno + ':' + e.colno));
+  addEventListener('unhandledrejection', (e) => dbg('Promise: ' + (e.reason && e.reason.message || e.reason)));
+}
+device.addEventListener('uncapturederror', (e) => { console.error('GPU: ' + e.error.message); dbg('GPU: ' + e.error.message); });
+// (and which pipeline an error belongs to: each is made inside its own error scopes, and a failed one is named by
+// its number, its entry points and the start of its vertex stage)
+if (DBG) {
+  const src = new WeakMap(), mk = device.createShaderModule.bind(device); let n = 0;
+  device.createShaderModule = (d) => { const m = mk(d); src.set(m, d.code); m.getCompilationInfo().then((ci) => { for (const g of ci.messages) if (g.type === 'error') dbg('WGSL: ' + g.message + ' @' + g.lineNum + ': ' + d.code.split('\n')[g.lineNum - 1]); }); return m; };
+  for (const f of ['createRenderPipeline', 'createComputePipeline']) {
+    const make = device[f].bind(device);
+    device[f] = (d) => {
+      const k = ++n; device.pushErrorScope('validation'); device.pushErrorScope('internal');
+      const p = make(d), st = d.vertex || d.compute, code = src.get(st.module) || '', at = code.indexOf('fn ' + st.entryPoint);
+      const say = (e) => { if (e) dbg('PIPELINE ' + k + ' (' + f.slice(6, 13) + ') ' + st.entryPoint + (d.fragment ? ' / ' + d.fragment.entryPoint + ' -> ' + d.fragment.targets.map((q) => q.format).join(',') : '') + ': ' + e.message + '\n' + code.slice(max(0, at - 260), at + 420)); };
+      device.popErrorScope().then(say); device.popErrorScope().then(say);
+      return p;
+    };
+  }
+}
 // out of memory or a GPU timeout: reload a level lower, or on Low say what happened
 device.lost.then((l) => {
   if (l.reason === 'destroyed') return; // the page is closing
@@ -125,7 +156,9 @@ const pSurf = scenePipe(mSurf, 'vs', 'fs', [], { strip: true }), pBack = scenePi
 const pBub = scenePipe(mSpr, 'vsBub', 'fsBub', [ibBub], { strip: true, blend: { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } } });
 const ADD = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
 const pSnow = scenePipe(mSpr, 'vsSnow', 'fsSnow', [ibSnow], { strip: true, blend: ADD });
-const pGl = scenePipe(mLeaf, 'vsGl', 'fsGl', [ibBub], { strip: true, blend: ADD, constants: { ROWS: 7 } });
+// (no constants here: vsGl uses none of the module's overrides, and Safari fails to build a vertex stage that is given
+// one it does not use - "Vertex library failed creation" - which leaves every frame black)
+const pGl = scenePipe(mLeaf, 'vsGl', 'fsGl', [ibBub], { strip: true, blend: ADD });
 const pSolidSh = shadowPipe(mSolid, 'vs', [vbSolid, ibSolid]), pTerrSh = shadowPipe(mSolid, 'vs', [vbSolid, ibSolid], { cull: 'front' });
 const pLeafSh = shadowPipe(mLeaf, 'vs', [ibLeaf], { strip: true, constants: { ROWS: 3 } });
 

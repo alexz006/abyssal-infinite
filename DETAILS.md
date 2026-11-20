@@ -211,6 +211,16 @@ away:
 
 They are stored in `localStorage.abyssalSnd` (see `source/src/audio.js`).
 
+## When the screen stays black
+
+Add `?debug` to the address. The page then shows, over the game, what the browser reports about its GPU, the first
+WebGPU and script errors, the pipeline an error belongs to (its entry points and the start of its vertex shader)
+and the state of the sound - what a phone has no console for (`DBG` and `dbg` in `source/src/gpu.js`).
+
+Two things Safari needed, kept in mind when changing the code: a pipeline must not be given an override constant
+that its vertex stage does not use (Safari fails to build it, and one failed pipeline leaves every frame black), and
+after the screen was locked the sound has to be restarted from a tap (`sound` in `source/src/audio.js`).
+
 ## Controls
 
 | | Keyboard & mouse |

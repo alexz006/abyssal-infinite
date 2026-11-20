@@ -4,7 +4,7 @@
 It speaks the game's protocol as any browser does (see ../README.md), so the server needs no changes.
 Only the standard library is used.
 
-    python3 krabs.py wss://sea.example.com/ws [--connect 127.0.0.1] [--name "Mr. Krabs"] [--at 8,-43.3,18]
+    python3 krabs.py wss://sea.example.com/ws [--connect 127.0.0.1] [--name "Mr.Krabs"] [--at 8,-43.3,18]
                      [--floor floor.json] [--roam 3]
 
 --connect: the address to open the socket to (the host of the URL stays in the TLS and HTTP handshake);
@@ -342,6 +342,6 @@ def run(args):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='A resident crab for the sea')
-    ap.add_argument('url'); ap.add_argument('--connect'); ap.add_argument('--name', default='Mr. Krabs'); ap.add_argument('--at', default='8,-43.3,18')
+    ap.add_argument('url'); ap.add_argument('--connect'); ap.add_argument('--name', default='Mr.Krabs'); ap.add_argument('--at', default='8,-43.3,18')
     ap.add_argument('--floor'); ap.add_argument('--roam', type=float, default=3.0)
     run(ap.parse_args())

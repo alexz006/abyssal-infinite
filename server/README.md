@@ -121,7 +121,7 @@ answers the gurgle of other players' crabs and spars with them by the game's own
 server does not know it from a player (it counts as one). Python 3 with the standard library is all it needs:
 
 ```bash
-python3 bot/krabs.py wss://sea.example.com/ws --name "Mr. Krabs" --at 8,-43.3,18 --floor bot/floor.json --roam 3
+python3 bot/krabs.py wss://sea.example.com/ws --name "Mr.Krabs" --at 8,-43.3,18 --floor bot/floor.json --roam 3
 ```
 
 `--at` is `x,y,z` with `y` the sea floor at that place. The script knows nothing of the world, so `--floor` gives
