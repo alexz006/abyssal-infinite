@@ -113,3 +113,18 @@ the meal.
 
 The server trusts positions as sent (there is no terrain here to check them against); what it does check is who may
 bite whom, from how far and how often. A connection silent for 30 seconds is dropped; the client reconnects by itself.
+
+## A resident crab (optional)
+
+[`bot/krabs.py`](bot/krabs.py) is a scripted player: a crab that stands at one place, spars with the crabs of other
+players by the game's own rules and answers their gurgle. It speaks the protocol above as a browser does, so the
+server does not know it from a player (it counts as one). Python 3 with the standard library is all it needs:
+
+```bash
+python3 bot/krabs.py wss://sea.example.com/ws --name "Mr. Krabs" --at 8,-43.3,18
+```
+
+`--at` is `x,y,z` with `y` the sea floor at that place. On the server that runs the sea, add `--connect 127.0.0.1`
+to open the socket over the loopback (the host of the URL still goes into the handshake). It reconnects by itself;
+run it under a service manager (a systemd unit with `Restart=always`) to keep it in the sea. Its numbers mirror the
+crab fight in `source/src/bots.js`: change them together.

@@ -66,6 +66,7 @@ window.abyssal = {
   // a fight of crabs: a rival beside the player's crab; claws up or down; n frames of both; how the fight stands
   rival: (d = 0.4, a = 0) => { for (const b of bots) if (!b.me && b.s === 0) b.gone = true; const q = botAdd(0, [me.x + d * cos(me.yaw + a), me.y, me.z + d * sin(me.yaw + a)], 2); q.age = 9; q.next = 99; q.v = 0; return bots.length; },
   block: (on) => { me.gur = !!on; },
+  rivalHp: (hp) => { for (const b of bots) if (!b.me && b.s === 0) b.hp = hp; },
   sim: (n) => { botHold = false; for (let i = 0; i < n; i++) { meStep(1 / 30, 0, 0, 0, 0, 0, false); botStep(1 / 30); } },
   fight: () => ({ hp: +meHP.toFixed(3), lost: meLost, down: +meDown.toFixed(2), back: me ? me.dead || 0 : -1, msg: meMsg, at: me ? [+me.x.toFixed(2), +me.z.toFixed(2)] : null, rivals: bots.filter((b) => !b.me && b.s === 0 && !b.gone).map((b) => ({ hp: +(b.hp === undefined ? 1 : b.hp).toFixed(3), lost: b.lost || 0, dead: b.dead ? 1 : 0, d: +hypot(b.x - me.x, b.z - me.z).toFixed(2) })) }),
   life: (hp) => { if (hp !== undefined) meHP = hp; return [+meHP.toFixed(3), meLost, meMsg, me ? me.s : -1]; },

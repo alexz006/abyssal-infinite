@@ -338,7 +338,7 @@ function botStep(dt) {
   botTick += dt;
   if (botHold) dt = 0;
   else if (!bots.length || botTick > 0.5) { const first = !bots.length; botTick = 0; botPopulate(first); for (let i = 0; i < bots.length; i++) bots[i].n = i; botMinds(); }
-  if (!botHold) for (const b of bots) { const c = CRIT[b.s]; b.age += dt; if (b.snap > 0) b.snap -= dt; if (b.me) continue; if (b.net) { netMove(b, dt); continue; } if (b.dead) { b.dead -= dt; if (b.dead <= 0) b.gone = true; continue; } if (b.s === CRAB) botCrab(b, c, dt); else if (b.mode === 3) botLeap(b, c, dt); else botSwim(b, c, dt); }
+  if (!botHold) for (const b of bots) { const c = CRIT[b.s]; b.age += dt; if (b.snap > 0) b.snap -= dt; if (b.me) continue; if (b.net) { netMove(b, dt); continue; } if (b.dead) { b.dead -= dt; if (b.dead <= 0) { b.dead = 0; b.hp = 0.25; b.lost = 3; b.clawT = 0; } continue; } if (b.s === CRAB) botCrab(b, c, dt); else if (b.mode === 3) botLeap(b, c, dt); else botSwim(b, c, dt); }
   if (!botHold) { botReplies(dt); for (const b of bots) { if (b.gur || b.talk) botGurgle(b, dt); if (b.snap > 0) b.talk = max(b.talk || 0, sin(clamp(b.snap / 0.28, 0, 1) * PI)); } }
   gurFill();
   // sorted by species: one draw call each
@@ -691,7 +691,7 @@ function meStep(dt, dyw, dpt, mf, mr, mu, fast) {
 //   a hunter bites - a creature it can eat (eats(), creatures.js) within reach of its mouth is eaten whole;
 //   the fry and the chromis pick plankton from the water, the whale strains it while it swims;
 //   the crab strikes another crab that is close with its claws - a struck crab fights back, either may lose a claw
-//   (they grow back with the next life), a beaten one lies on its back and can be eaten - and where no crab is
+//   (it grows back in time), a beaten one lies on its back and can be eaten - and where no crab is
 //   near it picks food from the floor.
 // Hunters that catch the player bite it; among themselves the bots eat what they catch.
 // A fight of crabs (the same numbers are in the servers, for a fight between players: server/src/sea.js and
@@ -773,7 +773,7 @@ function meAct() {
       const blk = o.gur && (o.lost || 0) !== 3; // (it had its claws up)
       fx('bite', CRAB); o.hp = (o.hp === undefined ? 1 : o.hp) - (meLost ? STRIKE1 : STRIKE) * (blk ? BLOCK : 1); o.anger = 8; o.rw = o.rt = 0; o.gur = false;
       [o.kx, o.kz] = shove(o, me.x, me.z);
-      if (o.hp <= 0) { o.dead = 30; o.anger = 0; o.v = 0; o.kx = o.kz = 0; meSay('Crab beaten · eat it'); }
+      if (o.hp <= 0) { o.dead = DOWN; o.anger = 0; o.v = 0; o.kx = o.kz = 0; meSay('Crab beaten · eat it'); }
       else if (!blk && Math.random() < CLAWP && (o.lost || 0) !== 3) { o.lost = loseClaw(o.lost || 0); meSay('Tore off its claw'); }
       else if (blk) meSay('The crab blocked it');
     } else if (me.mode === 0) { meFeed(0.05); fx('nibble'); }
