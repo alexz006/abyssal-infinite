@@ -19,7 +19,7 @@
 // top, bot: the depths it keeps between; floor: 1 stays close over the bottom; near: how many may be around the camera
 const GSCALE = 8.4 / 4.5;
 const CRIT = [
-  { id: 'crab', real: 0.2, spd: 0.6, turn: 2.5, mode: 2, amp: 0, freq: 7, wave: 0, top: 3, bot: 170, floor: 1, near: 14 },
+  { id: 'crab', real: 0.26, spd: 0.6, turn: 2.5, mode: 2, amp: 0, freq: 7, wave: 0, top: 3, bot: 170, floor: 1, near: 14 },
   { id: 'fry', real: 0.06, spd: 1.6, turn: 3.2, mode: 0, amp: 0.1, freq: 13, wave: 7, top: 2, bot: 50, floor: 0, near: 10 },
   { id: 'chromis', real: 0.09, spd: 2.1, turn: 2.8, mode: 0, amp: 0.09, freq: 11, wave: 6.5, top: 4, bot: 70, floor: 1, near: 6 },
   { id: 'perch', real: 0.45, spd: 2.7, turn: 2.2, mode: 0, amp: 0.085, freq: 8.5, wave: 6, top: 8, bot: 170, floor: 1, near: 4 },

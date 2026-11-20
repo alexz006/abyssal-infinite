@@ -850,10 +850,19 @@ fn critAlb(sp: u32, code0: u32, r: vec3f, up: f32, top: bool, gape: f32) -> vec3
   var n = normalize(i.n); let face = dot(n, V); if (face < 0.) { n = -n; }
   let z = zone(i.wp); let vv = vol(i.wp); let ca = caus(i.wp, dist);
   let on = normalize(i.on);
+  let crab = i.sp == 0u;
   let alb = critAlb(i.sp, i.code, i.op, on.y, on.y * face > 0., i.gape) * .9;
   let E = sunE(i.wp.y, z) * shadow1(i.wp + n * .3);
   let fillN = vec3f(n.x, abs(n.y) * .55 + .25, n.z);
-  var c = alb * (E * sat(dot(n, L)) * (.3 + ca) + amb(i.wp, fillN, vv.g, z) * 1.5 + side(i.wp, n, 1., z) * 1.1);
+  let lit = E * sat(dot(n, L)) * (.3 + ca) + amb(i.wp, fillN, vv.g, z) * 1.5 + side(i.wp, n, 1., z) * 1.1;
+  // So that the animals stand out from the rock (the crab most of all: small, and red where the water has taken the
+  // red out of the light), they keep some of their own hue whatever the light's colour, at the brightness the light
+  // gives them; and in dim light (lw: how much of it there is) some of it comes back in their colour, as it does
+  // from the corals. In full sun that second part fades out, or they would be washed out at noon.
+  let LUM = vec3f(.2126, .7152, .0722); let lw = dot(lit, vec3f(.1, .5, .5));
+  var c = alb * lit;
+  c = mix(c, alb * (dot(c, LUM) / max(dot(alb, LUM), .04)), select(.3, .65, crab));
+  c += alb * select(.4, 1.3, crab) * lw * exp(-lw / .45);
   let wet = select(.35, 1., i.code == 102u);
   c += E * pow(sat(dot(n, normalize(V + L))), 40.) * .35 * wet * (.3 + ca);
   let sky = amb(i.wp, vec3f(0., 1., 0.), vv.g, z);
