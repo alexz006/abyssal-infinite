@@ -5,10 +5,15 @@ It speaks the game's protocol as any browser does (see ../README.md), so the ser
 Only the standard library is used.
 
     python3 krabs.py wss://sea.example.com/ws [--connect 127.0.0.1] [--name "Mr. Krabs"] [--at 8,-43.3,18]
+                     [--floor floor.json] [--roam 3]
 
 --connect: the address to open the socket to (the host of the URL stays in the TLS and HTTP handshake);
            with it the certificate is not checked - it is meant for the server's own loopback.
---at:      x,y,z of the crab; y is the sea floor there.
+--at:      x,y,z of the crab's home; y is the sea floor there.
+--floor:   the heights of the sea floor around home (the server knows nothing of the world, and neither does this
+           script): {"x", "z": the corner, "step", "n": points a side, "h": n*n heights, row by row along x}.
+           With it the crab strolls up to --roam metres from home; without it, it stays where it is.
+           floor.json here is the floor around the default home (made with `floor` of dev.html, source/src/dev.js).
 """
 import argparse, base64, json, math, os, random, select, socket, ssl, struct, sys, time
 from urllib.parse import urlparse
@@ -16,7 +21,8 @@ from urllib.parse import urlparse
 # the rules of a fight, as in source/src/bots.js
 REACH, DOWN, CLAWT, SHOVE, CLAWP = 0.53, 8.0, 45.0, 1.5, 0.1
 HEAR = 6.0   # how far away a crab's gurgle is answered
-WALK, NEAR, ROAM = 1.1, 0.4, 3.0   # its walk, m/s; how close it comes to a rival; how far from home it goes
+WALK, NEAR, ROAM = 1.1, 0.4, 3.0   # its walk in a fight, m/s; how close it comes to a rival; how far it follows one
+STROLL = 0.45                      # its walk when nothing is going on, m/s
 DT = 0.125   # one state packet every DT seconds
 
 
@@ -118,8 +124,11 @@ class WS:
 
 
 class Crab:
-    def __init__(self, name, home):
-        self.name, self.home = name, home
+    def __init__(self, name, home, floor=None, roam=3.0):
+        self.name, self.home, self.floor, self.roam = name, home, floor, roam if floor else 0.0
+        self.y, self.v = home[1], 0.0
+        # a stroll: to (wx, wz), then a rest of wt seconds; gt: seconds to the next gurgle of its own
+        self.wx, self.wz, self.wt, self.gt = home[0], home[2], random.uniform(3, 8), random.uniform(15, 40)
         self.hp, self.lost, self.down, self.claw_t = 1.0, 0, 0.0, 0.0
         self.angry = self.snap = self.block_t = 0.0
         self.strike_t = 1.0
@@ -129,19 +138,30 @@ class Crab:
         self.rw = self.rt = self.rc = 0.0
         self.id, self.names, self.near, self.full = 0, {}, {}, False
 
+    def floor_y(self, x, z):
+        """the sea floor under x, z: from the map (bilinear), or home's"""
+        f = self.floor
+        if not f: return self.home[1]
+        n, h = f['n'], f['h']
+        u = min(max((x - f['x']) / f['step'], 0), n - 1.001); w = min(max((z - f['z']) / f['step'], 0), n - 1.001)
+        i, j = int(u), int(w); u -= i; w -= j; o = j * n + i
+        a, b = h[o] + (h[o + 1] - h[o]) * u, h[o + n] + (h[o + n + 1] - h[o + n]) * u
+        return a + (b - a) * w
+
     def who(self, i):
         return self.names.get(i) or '#%d' % i
 
     def respawn(self):
         self.hp, self.lost, self.claw_t, self.down, self.angry = 0.3, random.choice((1, 2)), 0.0, 0.0, 0.0
         self.kx = self.kz = 0.0
-        self.x, self.z = self.home[0], self.home[2]
+        self.x, self.z, self.wx, self.wz, self.v = self.home[0], self.home[2], self.home[0], self.home[2], 0.0
+        self.y = self.floor_y(self.x, self.z)
         log('a new crab (hp 0.3, one claw)')
 
     def state(self):
         up = (self.block_t > 0 or self.rt > 0) and self.lost != 3 and self.down <= 0
         flags = (1 if up else 0) | (2 if self.snap > 0 else 0) | self.lost << 2 | (16 if self.down > 0 else 0)
-        return struct.pack('<BBBB6f', 1, 0, flags, 0, self.x, self.home[1], self.z, self.yaw, 0.0, math.hypot(self.kx, self.kz))
+        return struct.pack('<BBBB6f', 1, 0, flags, 0, self.x, self.y, self.z, self.yaw, 0.0, self.v)
 
     def on_binary(self, d):
         if len(d) < 4 or d[0] != 2: return
@@ -167,8 +187,14 @@ class Crab:
         elif t == 'out':
             log('%s left' % self.who(m['id'])); self.names.pop(m['id'], None)
         elif t == 'bit':
-            if self.down > 0:
-                log('bitten while on its back by %s: dies' % self.who(m['from'])); self.respawn(); return
+            if m.get('s') != 0:
+                # a hunter's bite: no fight, and at nothing the crab is eaten - the server is told, and feeds the hunter
+                self.hp -= m['dmg']; self.last_hit = time.time()
+                log('bitten by %s: %s -> hp %.3f' % (self.who(m['from']), m['dmg'], self.hp))
+                if self.hp <= 0 or self.down > 0:
+                    ws.send(json.dumps({'t': 'ate'})); log('eaten by %s' % self.who(m['from'])); self.respawn()
+                return
+            if self.down > 0: return
             self.hp -= m['dmg']; self.angry, self.last_hit = 10.0, time.time()
             self.rw = self.rt = 0.0
             a = self.near.get(m['from'])
@@ -196,23 +222,40 @@ class Crab:
         t, td, tid = None, 1e9, 0
         for i, p in self.near.items():
             if p[0] == 0:
-                d = math.hypot(p[2] - self.x, p[3] - H[1], p[4] - self.z)
+                d = math.hypot(p[2] - self.x, p[3] - self.y, p[4] - self.z)
                 if d < td: t, td, tid = p, d, i
         # the shove of a strike, and the way back home
         self.x += self.kx * DT; self.z += self.kz * DT
         k = math.exp(-DT * 8); self.kx *= k; self.kz *= k
         if self.down <= 0:
-            # in a fight it walks up to its rival (not further than ROAM from home), otherwise back home
-            gx, gz = H[0], H[2]
-            if t and (self.angry > 0 or self.eat_at) and math.hypot(t[2] - H[0], t[4] - H[2]) < ROAM and td > 0.05:
+            # in a fight it walks up to its rival (not further than ROAM from its range); with its claws up it stands;
+            # otherwise a stroll now and then, sideways as crabs walk, to a place within its range around home
+            speed, fight = WALK, bool(t and (self.angry > 0 or self.eat_at) and math.hypot(t[2] - H[0], t[4] - H[2]) < ROAM + self.roam and td > 0.05)
+            if fight:
                 gx, gz = t[2] + (self.x - t[2]) / td * NEAR, t[4] + (self.z - t[4]) / td * NEAR
+            elif self.rw > 0 or self.rt > 0:
+                gx, gz = self.x, self.z
+            else:
+                speed = STROLL
+                if math.hypot(self.wx - self.x, self.wz - self.z) < 0.05:
+                    self.wt -= DT
+                    if self.wt <= 0 and self.roam > 0:
+                        a, r = random.uniform(0, 2 * math.pi), self.roam * math.sqrt(random.random())
+                        self.wx, self.wz, self.wt = H[0] + math.cos(a) * r, H[2] + math.sin(a) * r, random.uniform(4, 15)
+                gx, gz = self.wx, self.wz
             dx, dz = gx - self.x, gz - self.z
             l = math.hypot(dx, dz)
+            self.v = 0.0
             if l > 0.01:
-                m = min(l, WALK * DT) / l
-                self.x += dx * m; self.z += dz * m
+                m = min(l, speed * DT)
+                self.x += dx / l * m; self.z += dz / l * m; self.v = m / DT
+                if not fight: self.yaw = math.atan2(dz, dx) + math.pi / 2
+        else:
+            self.v = 0.0
+        self.y = self.floor_y(self.x, self.z)
         self.snap -= DT; self.angry -= DT; self.block_t -= DT; self.strike_t -= DT
-        if t and td < 12 and self.down <= 0: self.yaw = math.atan2(t[4] - self.z, t[2] - self.x)
+        # it faces a crab that it fights, answers or has right before it
+        if t and self.down <= 0 and td < 12 and (self.angry > 0 or self.rw > 0 or self.rt > 0 or td < 2.5): self.yaw = math.atan2(t[4] - self.z, t[2] - self.x)
         if self.down > 0:
             self.down -= DT
             if self.down <= 0:
@@ -246,6 +289,11 @@ class Crab:
             self.rc -= DT
             if self.rc <= 0 and self.angry <= 0 and self.down <= 0 and self.lost != 3 and t and td < HEAR and t[1] & 1 and not t[1] & 16:
                 self.rw = random.uniform(0.4, 1.3); log('answers the gurgle of %s' % self.who(tid))
+            # and now and then it gurgles of its own accord
+            self.gt -= DT
+            if self.gt <= 0:
+                self.gt = random.uniform(20, 60)
+                if self.rw <= 0 and self.angry <= 0 and self.down <= 0 and self.lost != 3: self.rt = random.uniform(1.2, 2.8)
         # a lost claw grows back; left alone for a minute, it is healed
         if self.lost and self.down <= 0:
             self.claw_t += DT
@@ -258,7 +306,10 @@ class Crab:
 
 
 def run(args):
-    crab = Crab(args.name, [float(v) for v in args.at.split(',')])
+    floor = None
+    if args.floor:
+        with open(args.floor) as f: floor = json.load(f)
+    crab = Crab(args.name, [float(v) for v in args.at.split(',')], floor, args.roam)
     wait = 3
     while True:
         ws = None
@@ -292,4 +343,5 @@ def run(args):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='A resident crab for the sea')
     ap.add_argument('url'); ap.add_argument('--connect'); ap.add_argument('--name', default='Mr. Krabs'); ap.add_argument('--at', default='8,-43.3,18')
+    ap.add_argument('--floor'); ap.add_argument('--roam', type=float, default=3.0)
     run(ap.parse_args())

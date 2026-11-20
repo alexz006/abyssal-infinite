@@ -65,6 +65,8 @@ window.abyssal = {
   crabs: (lost) => { meLost = lost; const o = botAdd(0, [me.x + 0.55 * Math.cos(me.yaw) + 0.3, me.y, me.z + 0.55 * Math.sin(me.yaw)], 1); o.dead = 30; o.age = 9; const q = botAdd(0, [me.x + 0.55 * Math.cos(me.yaw) - 0.5, me.y, me.z + 0.55 * Math.sin(me.yaw) + 0.4], 2); q.lost = 2; q.age = 9; q.next = 99; q.v = 0; },
   // a fight of crabs: a rival beside the player's crab; claws up or down; n frames of both; how the fight stands
   rival: (d = 0.4, a = 0) => { for (const b of bots) if (!b.me && b.s === 0) b.gone = true; const q = botAdd(0, [me.x + d * cos(me.yaw + a), me.y, me.z + d * sin(me.yaw + a)], 2); q.age = 9; q.next = 99; q.v = 0; return bots.length; },
+  // the floor a crab stands on at x, z (null: none)
+  floor: (x, z) => floorBelow(x, min(seaBase(x) + 22, -2), z, seaBase(x) - 60),
   block: (on) => { me.gur = !!on; },
   rivalHp: (hp) => { for (const b of bots) if (!b.me && b.s === 0) b.hp = hp; },
   sim: (n) => { botHold = false; for (let i = 0; i < n; i++) { meStep(1 / 30, 0, 0, 0, 0, 0, false); botStep(1 / 30); } },
