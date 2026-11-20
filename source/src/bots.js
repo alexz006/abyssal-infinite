@@ -457,6 +457,15 @@ function sonarDraw(cv, dt) {
   x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R, 0, TAU); x.fill();
   // ahead on the screen is where the view looks; the middle is the player's creature, or the free camera
   const hx = sin(F[YAW]), hz = -cos(F[YAW]), rx = cos(F[YAW]), rz = sin(F[YAW]), ox = me ? me.x : F[CX], oy = me ? me.y : F[CY], oz = me ? me.z : F[CZ];
+  // The way home (the first viewpoint): a green haze at the rim, on the side home lies; it fades as home comes
+  // within the sonar's range and is gone near it.
+  { const dx = POSES[0][0] - ox, dz = POSES[0][2] - oz, r = hypot(dx, dz), a = clamp((r - SONAR * 0.5) / (SONAR * 0.5), 0, 1);
+    // A crescent: what of the disc lies outside a larger circle (3.25 R) pushed away from home - thickest towards
+    // home (0.13 R), thinning to points 35 degrees either side; soft on its inner edge, and dimmed again at the rim like the disc itself.
+    if (a > 0) { const ux = (dx * rx + dz * rz) / r, uy = -(dx * hx + dz * hz) / r, t = R * 0.13, q = R * 3.25, px = cx - ux * R * 2.38, py = cy - uy * R * 2.38, al = (k) => 'rgba(110,240,140,' + (k * a).toFixed(3) + ')';
+      x.save(); x.beginPath(); x.arc(cx, cy, R, 0, TAU); x.clip();
+      g = x.createRadialGradient(px, py, q, px, py, q + t); g.addColorStop(0, al(0)); g.addColorStop(0.4, al(0.1)); g.addColorStop(0.78, al(0.5)); g.addColorStop(1, al(0.12));
+      x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R, 0, TAU); x.fill(); x.restore(); } }
   const seen = [];
   for (const b of bots) { if (b.me) continue; const dx = b.x - ox, dz = b.z - oz, r = hypot(dx, dz); if (r < SONAR) seen.push([r, dx, dz, b]); }
   seen.sort((a, b) => b[0] - a[0]); // the far ones first, the near sharp ones over them

@@ -152,7 +152,8 @@ While you are diving, a soft disc in the corner shows every creature within 100 
 distant creature is a wide blur that tightens into a sharp dot as it gets closer, and echoes fade toward the edge of
 the disc. When you play a creature, the color tells you what each echo means to your species: something you can eat,
 something that can eat you, or neither. With the free camera, the color runs from pale for harmless animals through
-amber to red for the big hunters. Other players are labeled with their names.
+amber to red for the big hunters. Other players are labeled with their names. A green crescent at
+the rim shows the way home once you are more than 50 m from it.
 
 ## Multiplayer
 

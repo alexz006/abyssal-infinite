@@ -51,7 +51,8 @@ one every 45 seconds.
 
 **Gurgle** to "talk": every species has its own voice, heard about 34 m away, and a nearby bot of your species
 answers. **The sonar** in the corner shows every creature within 100 m, colored by what it is to you: food, danger
-or neither. Other players are labeled with their names.
+or neither. Other players are labeled with their names. A green crescent at
+the rim shows the way home once you are more than 50 m from it.
 
 | | |
 |---|---|
