@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<title>Abyssal Infinite</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=theme-color content=#03131c>
+<style>
+/* The class on <body> is the state of the page:
+   l = loading, m = menu, g = in the scene (g p while the mouse is captured), l e = failed to start */
+html { background: #03131c; }
+body {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%; margin: 0; overflow: hidden;
+  background: radial-gradient(#0b3a4d, #03131c 70%);
+  font: 700 clamp(13px, .7vw + .9vh, 36px)/1.4 system-ui, sans-serif; color: #e8fbff;
+  -webkit-user-select: none; user-select: none;
+}
+/* a phone held upright gets the whole page turned on its side, so the scene is always landscape */
+@media (orientation: portrait) and (pointer: coarse) {
+  body { width: 100dvh; height: 100dvw; transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); }
+}
+
+/* the scene: blurred and dimmed behind the menu, comes into focus when you dive */
+#c {
+  position: absolute; width: 100%; height: 100%; touch-action: none; cursor: crosshair;
+  transition: filter 1s, transform 1s, opacity 2s;
+}
+body:not(.g) #c { filter: blur(1vmax) brightness(.5); transform: scale(1.06); }
+.l #c { opacity: 0; }
+
+/* menu: the loading bar and the buttons share one grid cell, so nothing jumps when they swap */
+#m {
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: min(2.2em, 6vmin);
+  padding: 1em 1em 4.5em; text-align: center; background: radial-gradient(#03131c00 30%, #03131ccc);
+  transition: opacity .5s, visibility .5s;
+}
+.g #m, .m #l, .l #g { opacity: 0; visibility: hidden; }
+h1 {
+  margin: 0; font: 900 4.4em/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
+  color: #0000; background: linear-gradient(#fff 25%, #7ff3ff 60%, #14a9c4);
+  -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 .06em .2em #000c);
+}
+p { margin: 0; }
+#a { display: grid; width: 27em; max-width: 100%; }
+#a > * { grid-area: 1/1; transition: opacity .8s, visibility .8s; }
+#s, #w, #k, #h, #x, #xs, #y, #ys { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
+#w { margin-top: 1.2em; color: #7ff3ff; text-wrap: balance; }
+
+/* loading bar */
+#p {
+  height: .5em; margin: .4em 0 1em; overflow: hidden; border-radius: 1em; background: #03131c;
+  box-shadow: 0 0 0 2px #7ff3ff80, 0 0 1.5em #14a9c4;
+}
+#b {
+  display: block; height: 100%; background: linear-gradient(90deg, #14a9c4, #9ff6ff);
+  transform: scaleX(0); transform-origin: 0; will-change: transform;
+}
+.e #p { visibility: hidden; }
+.e #s { font-size: 1.1em; letter-spacing: 0; text-transform: none; }
+
+/* buttons */
+button, a {
+  display: flex; align-items: center; justify-content: center; gap: .6em; padding: .8em 1.4em; border: 0;
+  border-radius: .5em; background: #fff; box-shadow: inset 0 -.2em #0003, 0 .3em 1em #0009;
+  font: 800 1em/1.2 system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; text-decoration: none;
+  color: #03222d; cursor: pointer; transition: transform .12s, filter .12s;
+}
+button:hover, a:hover { transform: translateY(-.12em); filter: brightness(1.15); }
+button:active, a:active { transform: translateY(.1em); filter: brightness(.9); }
+:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+#g { display: grid; gap: min(1.2em, 3.5vmin); }
+#d {
+  padding: .9em; background: linear-gradient(#9ff6ff, #19c3d6); font-size: 1.3em;
+  box-shadow: inset 0 -.2em #0003, 0 0 2em #19c3d6b3;
+}
+
+/* GitHub and Feedback (the repository and its issues): always at the bottom of the menu */
+#f { position: absolute; left: 0; right: 0; bottom: 1.5em; display: flex; justify-content: center; gap: 1em; font-size: .8em; }
+svg { width: 1.5em; height: 1.5em; fill: currentColor; }
+
+/* dark plates under the dive button: detail level, list of controls, touch hint */
+#k, #h { padding: 1em 1.6em; border-radius: .7em; background: #03131cb3; }
+#y, #ys { display: grid; gap: .3em; } #y[hidden], #ys[hidden] { display: none; }
+#xr { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
+#x, #xs { padding: .7em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
+#z { padding: .7em; background: linear-gradient(#9ff6ff, #19c3d6); }
+
+/* detail level: three buttons in a row, the current one lit */
+#y p, #ys p { display: flex; align-items: center; gap: .4em; padding: .4em; border-radius: .7em; background: #03131cb3; }
+#y span, #ys span { flex: 1.15; color: #7ff3ff; white-space: nowrap; }
+#y .w { white-space: normal; line-height: 1.15; }
+#y p button, #ys p button { flex: 1; min-width: 0; padding: .5em 0; background: none; box-shadow: none; color: #e8fbff; letter-spacing: .08em; }
+#y p button:hover, #ys p button:hover { background: #7ff3ff33; }
+#y p .on, #ys p .on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; pointer-events: none; }
+
+/* list of controls: two groups, key caps right-aligned against their labels */
+#k { display: flex; justify-content: center; gap: 2em; text-align: left; }
+#k p { display: grid; grid-template-columns: auto auto; align-content: start; align-items: center; gap: .55em .9em; }
+#k p + p { padding-left: 2em; border-left: 2px solid #7ff3ff40; }
+#k i { display: flex; justify-self: end; align-items: center; gap: .25em; font-style: normal; }
+#k b {
+  min-width: 1.1em; padding: .2em .5em; border-radius: .35em; background: #e8fbff;
+  box-shadow: inset 0 -.15em #0004; color: #03222d; text-align: center;
+}
+#h { display: none; }
+/* the sonar: a disc at the bottom right while diving, all of it on the screen; at the bottom left, who the player is */
+#so { position: fixed; right: 2vmin; bottom: 2vmin; width: clamp(120px, 26vmin, 320px); height: clamp(120px, 26vmin, 320px); pointer-events: none; display: none; }
+#sn { display: block; width: 100%; height: 100%; }
+#hu { position: fixed; left: 2.4vmin; bottom: 2vmin; margin: 0; pointer-events: none; display: none; font-size: .7em; letter-spacing: .12em; text-transform: uppercase; color: #7ff3ffb0; text-shadow: 0 1px 6px #000a; }
+#hu b { color: #e8fbff; font-weight: 600; }
+/* under it, the stamina for dashes */
+#st { display: block; width: 11em; height: .32em; margin-top: .5em; border-radius: 9em; background: #7ff3ff2e; overflow: hidden; }
+#sb { display: block; height: 100%; width: 100%; background: #7ff3ff; }
+/* over it the health (flashes when bitten), and above the name what has just happened */
+#hb { display: block; width: 11em; height: .5em; margin-top: .5em; border-radius: 9em; background: #7ff3ff2e; overflow: hidden; }
+#hf { display: block; height: 100%; width: 100%; background: #7fe08a; }
+#hb.h { box-shadow: 0 0 0 2px #ff5e5b; }
+#hm { display: block; min-height: 1.4em; margin-bottom: .3em; color: #ffe9a8; }
+#hw { display: block; }
+#hn { display: block; color: #8fe6c3; }
+.g #so, .g #hu { display: block; }
+/* the creature panel: a row of species, the model to turn, what to know about it */
+#a.w { width: 54em; }
+/* the creature button and the player's name share a row (the name only where there is a server: #cr.o without) */
+#cr { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
+#cr.o { grid-template-columns: 1fr; } .o #nm { display: none; }
+.bk { width: 1.1em; height: 1.1em; flex: none; }
+#nm { min-width: 0; padding: .6em .9em; border: 0; border-radius: .5em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #e8fbff; font: inherit; font-size: .8em; letter-spacing: .08em; text-align: center; outline: none; }
+#nm:focus { box-shadow: inset 0 0 0 2px #7ff3ff; } #nm::placeholder { color: #7ff3ff80; text-transform: uppercase; letter-spacing: .12em; }
+/* in the main menu: the chosen creature's picture, "Choose creature" over its name, an arrow that says there is more;
+   in the creature panel (#a.w) the same button leads back: arrow, "Main menu", the picture, the name */
+#cb { justify-content: flex-start; padding: .55em .8em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
+#cb span { display: grid; gap: .1em; text-align: left; line-height: 1.15; }
+#cl { font-style: normal; font-size: .78em; }
+#cb b { color: #e8fbff; }
+#ct { width: 3.2em; aspect-ratio: 64 / 30; flex: none; }
+#cch { margin-left: auto; }
+#cbk { display: none; }
+.w #cb { justify-content: center; padding: .7em; }
+.w #cb span { display: contents; } .w #cl { font-size: 1em; order: 1; } .w #ct { order: 2; } .w #cn { order: 3; }
+.w #cbk { display: block; } .w #cch { display: none; }
+/* until a creature has ever been chosen the button glows in and out */
+#cb.n { animation: cb 2.4s ease-in-out infinite; }
+@keyframes cb { 50% { box-shadow: inset 0 0 0 2px #7ff3ff, 0 0 1.6em #19c3d6; } }
+/* a question over the menu (unsaved graphics settings), in the menu's own plates and buttons */
+#u { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; padding: 1em; background: #03131ce6; }
+#u[hidden] { display: none; }
+#u div { display: grid; gap: .6em; width: 24em; max-width: 100%; padding: 1.4em 1.6em; border-radius: .7em; background: #03222d; box-shadow: inset 0 0 0 2px #7ff3ff59, 0 .6em 2.5em #000c; }
+#u p { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
+#u p + p { margin-bottom: .6em; color: #7ff3ff; text-transform: none; letter-spacing: .02em; font-weight: 600; }
+#u button { padding: .7em; font-size: .8em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
+#u #ua { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; }
+#cp { display: grid; gap: .5em; font-size: .8em; } #cp[hidden] { display: none; }
+#cs { display: grid; grid-template-columns: repeat(11, 1fr); gap: .3em; }
+#cs button { padding: .35em .1em .4em; min-width: 0; background: #03131cb3; box-shadow: none; color: #e8fbff; font-size: .72em; letter-spacing: .02em; display: grid; justify-items: center; gap: .15em; border-radius: .5em; text-transform: none; }
+#cs button:hover { background: #7ff3ff33; }
+#cs .on { background: linear-gradient(#9ff6ff, #19c3d6); color: #03131c; }
+#cs canvas { width: 100%; max-width: 64px; aspect-ratio: 64 / 30; }
+#cs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#cw { display: grid; grid-template-columns: 1.15fr 1fr; gap: .6em; }
+#cv { width: 100%; height: 100%; min-height: 13em; border-radius: .7em; background: radial-gradient(circle at 50% 30%, #0e5a70, #052635 75%); touch-action: none; cursor: grab; }
+#ci { padding: .9em 1.1em; border-radius: .7em; background: #03131cb3; text-align: left; text-transform: none; letter-spacing: .01em; line-height: 1.35; }
+#ci h3 { margin: 0; font-size: 1.5em; color: #e8fbff; }
+#ci p { margin: .45em 0 0; }
+#ci .k { margin-top: 0; color: #7ff3ff; text-transform: uppercase; letter-spacing: .1em; font-size: .8em; }
+#ci .t { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .4em; }
+#ci .t span { background: #0a2a3a; border-radius: .5em; padding: .35em .6em; color: #8fb9c4; font-size: .85em; }
+#ci .t b { display: block; color: #e8fbff; font-size: 1.25em; }
+#ci .l { color: #8fb9c4; font-size: .85em; }
+#ci .c { margin-top: .2em; display: flex; flex-wrap: wrap; gap: .3em; }
+#ci .c i { font-style: normal; font-size: .85em; padding: .1em .6em; border-radius: 9em; border: 1px solid #134a5e; color: #8fb9c4; }
+#ci .c .e { color: #57e3d8; border-color: #57e3d866; } #ci .c .d { color: #ff7a66; border-color: #ff7a6666; } #ci .c .f { color: #d9c98a; border-color: #d9c98a66; }
+#ci .n { color: #c4dde4; font-size: .92em; }
+@media (max-width: 700px) { #cw { grid-template-columns: 1fr; } #cs { grid-template-columns: repeat(6, 1fr); } }
+@media (pointer: coarse), (max-height: 30em) {
+  #k { display: none; }
+}
+@media (pointer: coarse) {
+  #h { display: block; }
+}
+
+/* in the scene: a small menu button (hidden while the mouse is captured, Esc does the same) and the stats line */
+#o {
+  position: absolute; top: .6em; right: .6em; display: none; padding: .3em .6em; background: #03222dd9;
+  box-shadow: inset 0 0 0 2px #7ff3ff, 0 .3em 1em #0009; font-size: 1.3em; color: #e8fbff; opacity: .8;
+}
+.g #o { display: flex; }
+.p #o { display: none; }
+#i {
+  position: absolute; top: 1em; left: 1.2em; margin: 0; font: .8em/1.6 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap; text-shadow: 0 1px 4px #000; pointer-events: none;
+}
+</style>
+</head>
+<body class=l>
+<canvas id=c></canvas>
+<div id=so><canvas id=sn></canvas></div>
+<div id=hu><span id=hm></span><span id=hn></span><span id=hw></span><i id=hb><i id=hf></i></i><i id=st><i id=sb></i></i></div>
+<div id=m>
+  <h1>Abyssal Infinite</h1>
+  <div id=a>
+    <div id=l><div id=p><i id=b></i></div><p id=s>Diving…</p><p id=w hidden>Use Google Chrome for optimal experience</p></div>
+    <div id=g>
+      <button id=d>Dive in</button>
+      <div id=cr>
+        <button id=cb><svg id=cbk class=bk viewBox="0 0 24 24"><path d="M10.5 4.5 3 12l7.5 7.5 1.8-1.8-4.4-4.4H21v-2.6H7.9l4.4-4.4z"/></svg><canvas id=ct></canvas><span><i id=cl></i><b id=cn></b></span><svg id=cch class=bk viewBox="0 0 24 24"><path d="m9 5 7 7-7 7-1.8-1.8 5.2-5.2-5.2-5.2z"/></svg></button>
+        <input id=nm maxlength=16 placeholder="Your name" title="Your name for other players" autocomplete=off spellcheck=false>
+      </div>
+      <div id=cp hidden>
+        <div id=cs></div>
+        <div id=cw><canvas id=cv></canvas><div id=ci></div></div>
+      </div>
+      <div id=xr><button id=x>Graphics settings</button><button id=xs>Sound settings</button></div>
+      <div id=ys hidden>
+        <p><span>Volume</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
+        <p><span>Water</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
+        <p><span>Music</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
+        <p><span>Sea life</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
+        <p><span>Gurgling</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
+      </div>
+      <div id=y hidden>
+        <p id=q><span>Detail</span><button>Low</button><button>Medium</button><button>High</button></p>
+        <p id=v><span>Water</span><button>Lagoon</button><button>Clear</button><button>Crystal</button></p>
+        <p><span>Distance</span><button>Near</button><button>Medium</button><button>Far</button></p>
+        <p><span>Resolution</span><button>Auto</button><button>50%</button><button>75%</button><button>100%</button></p>
+        <p><span>Plants</span><button>Sparse</button><button>Medium</button><button>Dense</button></p>
+        <p><span>Shadows</span><button>Low</button><button>Medium</button><button>High</button></p>
+        <p><span>Smoothing</span><button>Off</button><button>4x</button></p>
+        <p><span>Light rays</span><button>Off</button><button>Low</button><button>High</button></p>
+        <p><span class=w>Animal shadows</span><button>Off</button><button>Few</button><button>All</button></p>
+        <button id=z hidden>Apply and reload</button>
+      </div>
+      <div id=k>
+        <p>
+          <i><b>W</b><b>A</b><b>S</b><b>D</b></i>Swim
+          <i><b>Q</b><b>E</b></i>Down / up
+          <i><b>Shift</b></i>Faster
+          <i><b>Shift</b>×2</i>Burst of speed
+          <i><b>LMB</b></i>Bite, strike, feed
+          <i><b>RMB</b></i>Gurgle
+          <i><b>1</b>–<b>6</b></i>Home viewpoints
+          <i><b>7</b>–<b>0</b></i>Into the deep
+          <i><b>Wheel</b></i>Camera nearer, further
+        </p>
+        <p>
+          <i><b>Esc</b></i>Menu
+          <i><b>M</b></i>Mute
+          <i><b>H</b></i>Stats
+        </p>
+      </div>
+      <p id=h>Hold to swim forward · slide to steer · second finger to go faster</p>
+    </div>
+  </div>
+  <div id=u hidden><div>
+    <p>Graphics settings were changed</p>
+    <p>They take effect after the page reloads.</p>
+    <button id=ua>Apply and reload</button>
+    <button id=ud>Discard changes</button>
+    <button id=uk>Keep editing</button>
+  </div></div>
+  <p id=f>
+    <a href=https://github.com/alexz006/abyssal-infinite target=_blank><svg viewBox="0 0 16 16"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>GitHub</a>
+    <a href=https://github.com/alexz006/abyssal-infinite/issues target=_blank><svg viewBox="0 0 24 24"><path d="M4 3.5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-7.6L7 21.5v-4H4a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2z"/></svg>Feedback</a>
+  </p>
+</div>
+<button id=o aria-label=Menu>≡</button>
+<pre id=i></pre>
+<script>
+/*SCRIPT*/
+</script>
+</body>
+</html>

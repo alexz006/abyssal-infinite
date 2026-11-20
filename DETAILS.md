@@ -1,0 +1,267 @@
+# Abyssal Infinite: the details
+
+How each part of the game works and where it lives in the code. For what the game is and how to play it, see the
+[README](README.md).
+
+## How it works
+
+- The world is an endless grid of 48 m tiles. The 8 × 8 tiles around you are loaded (384 m across; the water hides anything further away).
+- A tile's rock is sculpted on your graphics card, a few slices per frame. A background worker then turns it into the sea floor mesh and grows the kelp, plants, rocks, sponges, corals, fish schools and mantas on it. The frame loop only uploads the finished tile, so swimming stays smooth while the world is built ahead of you.
+- **A place is the same every time you return.** Rock density is a pure function of position, and every random choice is seeded by where it happens (the tile, or the cell a kelp column stands in), never by the order things were built in.
+- The skylight volume, the ground map and the shadow map wrap around with the period of the loaded window, so a new tile only rewrites its own patch of each.
+- The hand-made home region of the original (canyon walls, arches, the ship, the whale tail, the six viewpoints) is still there, around the origin. Further out, the same noise-driven rules take over.
+- **Formations far from home.** The world is cut into 160 m cells, and each cell decides from its own seed whether it holds a formation (`cellShapes` in `layout.js`): on the shelf an arch, a pillar with a window, a canyon between two walls, a spire that reaches the surface or a wall with tunnels; on the plain a field of hydrothermal chimneys. The ship and the whale tail stay at home.
+- **A sea with a profile.** The sea floor follows one profile along x (`seaBase` in `math.js`), and each zone has its own relief and life:
+  - **Shore** (east, about 1.5 km from home): pale rippled sand, sand bars lying along the coast, sea grass, coral reefs in the sunlit shallows, few rocks. The camera stops where the water gets too shallow.
+  - **Shelf**: the home region and more terrain like it, 45 m down: kelp forests, plateaus, formations.
+  - **Slope** (west, from the shelf break at 300 m): the floor steps down in terraces and is cut by canyons that run down it; rougher, ledged rock; the kelp ends where the light does.
+  - **Abyssal plain** (from about 4 km west, 565 m down): flat sediment with long low hills, knolls, fields of pillow lava and of nodules, chimneys that steam. Few fish, hardly any plants.
+  The 60 m band of voxels follows the floor, and the camera's exposure adapts to the glare of the shallows and the dark of the deep (where the water keeps a faint glow of its own, so you can still make out shapes).
+- **A curtain of haze.** Nothing is drawn past 135 m, which is closer than the nearest tile still loading, and the window of loaded tiles runs a little ahead of a swimming camera.
+- **Water.** The menu's *Water* row switches between *Lagoon* (the original's green-blue haze), *Clear* and *Crystal* (bluer, with a longer view, like an aquarium; the default on a first visit): `WATERQ` in `quality.js`.
+- Everything is drawn with **WebGPU** directly. No game engine or 3D library is used.
+- The ship, whale tail, mantas, fish, corals and all ten playable creatures are built from simple mathematical shapes.
+- The sound, including every creature's voice, is synthesized live with the Web Audio API.
+- It's built to run smoothly. With the resolution on auto it aims for 60 fps by lowering first the resolution and then how far away plants and rocks are drawn, in small steps. The scene is already running, blurred, behind the start menu, so most of that tuning is done before you dive in.
+
+## The deep: keys 7-0
+
+Keys `7` to `0` jump to four more viewpoints, far apart and each deeper than the last:
+
+- over the gorge (its rim is 55 m down);
+- over the rift (rim at about 70-90 m, bed at nearly 300 m);
+- a rock formation on the continental slope (about 200 m);
+- a formation far out on the abyssal plain (about 555 m).
+
+Their positions are found when the world loads (`DEEPS` in `main.js`).
+
+## The gorge
+
+The gorge is a crack in the upper slope, 720 m west of home, that runs north and south without end. It has sheer
+rock walls up to 36 m high, caves in those walls, and a winding bed that widens, narrows and changes depth.
+
+In the code: `GORX` and `gorgeX` in `math.js`, shaped in `W_DENS`. 36 m is as deep as a sheer wall can be inside one
+60 m band of voxels, so the band is lowered in a strip around the gorge.
+
+## The rift and tall tiles
+
+The rift is a chasm 200 m deep and 16-40 m wide, 980 m west of home. It narrows toward its bed and steps out in
+ledges, with caves in its walls and vents on its bed. Life thins out on the way down.
+
+A wall that high does not fit into the voxel band, so the three columns of tiles the rift runs through are *tall*:
+their voxel blocks reach 201 m further down. A tall tile goes through the same pipeline as any other tile, but with
+348 layers instead of 80:
+
+- its density is computed over 24 frames instead of 8;
+- the worker's `genTile` takes the block's height;
+- the collision lookup and the shadow pass use the tile's own height.
+
+The skylight texture keeps its 40 layers, spaced further apart over the rift (`bandH`). Outside those three columns
+nothing changes: a test tile's buffers have the same fingerprint before and after.
+
+In the code: `RIFX`, `riftX` and `riftDepth` in `math.js`; `tileNY` and `tileOY` for the tall tiles.
+
+## Creatures
+
+Ten species swim around you as bots. The world has no global population: a couple of dozen creatures live near the
+camera, the ones you leave behind are removed, and new ones arrive from beyond the haze, mostly ahead of you. Each
+species keeps to its own depths, so you meet different animals as you go deeper. Hunters chase anything they can eat
+(up to 60% of their own length; the whale hunts nothing), prey bolts, and bots eat what they catch. The crab walks
+the floor and steps off ledges, the dolphin leaps, and the whale comes up to the surface. The schools of small fish
+from the original are still there, unchanged.
+
+Sizes: `real` in `CRIT` is the animal's real length, and that is the number shown to the player. The game draws
+everything at `GSCALE` = 1.87 times life size, to match the original's manta (8.4 m across, where a real oceanic
+manta averages 4.5 m).
+
+Creature shadows are not part of the baked shadow map, because the creatures move. Instead, the few animals that
+matter most to the current view are passed to the scene as capsules, and the terrain shader darkens the ground under
+each one along the sun's direction. The higher the animal swims, the wider and fainter its shadow.
+
+In the code: `creatures.js` holds the species' stats and procedural meshes, `bots.js` their behavior, and `W_CRIT` in
+`shaders.js` the swimming motion and colors. Shadows are `critSh` in `shaders.js` and `botShadows` in `bots.js`.
+
+## Playing a creature
+
+The creature button in the menu shows your current creature, next to the name other players see. It opens the
+**Creature** panel, where you can pick any of the ten species or the free camera. For each species the panel shows a
+model you can turn around, its real size, its speed, its depth range, what it eats and what eats it.
+
+**Moving.** The mouse turns the view around your animal, and the keys steer relative to the view, as in most
+third-person games: `W` swims where you are looking, `S` swims back toward the camera, `A` and `D` go left and right.
+The body turns toward its heading as fast as that species can, and keeps its heading when you let go of the keys.
+The camera follows from behind and rises where rock is in the way. The mouse wheel moves it closer or further out;
+fully zoomed in, it sits just above the animal's back.
+
+**Speed.** Holding a key swims at the species' normal speed. Holding `Shift` is a dash that lasts almost ten seconds.
+Tapping `Shift` twice is a one-second burst at two and a half times the normal speed. For the crab, the burst is a
+sideways dart in the direction the view is turned.
+
+**Obstacles.** When you run into rock, or into the ship's timbers, your creature slides along the surface instead of
+stopping, and a head-on hit carries it up and over. Its nose is stopped as well as its body, so the head does not
+poke through a wall or a plank. A crab slides along a wall the same way.
+
+**Each species moves in its own way.** The crab walks sideways along the floor and drops off ledges. The dolphin and
+the whale leap when they break the surface at speed.
+
+**Staying alive.** Your creature has a health bar above its stamina bar. Health drains on its own over seven minutes,
+food restores it, and each bite you take removes a chunk. At zero the creature dies and you come back as a new one
+of the same species. The left mouse button uses the mouth:
+
+- A hunter eats any creature within reach that is no longer than 60% of its own length.
+- The fry and the chromis pick at plankton. The whale filters it as it swims.
+- The crab strikes another crab nearby, and the other crab fights back. Either can lose a claw until its next life.
+  A beaten crab ends up on its back and can be eaten. With no crab nearby, the crab picks food off the floor.
+
+Other creatures treat you as one of their own: hunters chase and bite you, prey flees from you. A hunter loses
+track of prey it cannot see, so you can hide behind rock, and also behind things you can swim through: a loose
+boulder, the ship, kelp.
+
+**Gurgling** is how players "talk". Hold the right mouse button and your creature gurgles: its mouth moves, bubbles
+rise to the surface, and you hear that species' own sound. All species are equally loud. The dolphin whistles and
+clicks, and the whale sings, as the real animals do. A gurgle carries about a ship's length (34 m), gets quieter with
+distance, and comes from the right direction. A nearby bot of the same species gurgles back, whether the gurgler is
+you or another player. A crab stops, turns to face whoever it is answering, and raises its claws instead of opening
+its mouth. While it does, hunters up to seven times its length (the perch, the barracuda) turn away from it.
+
+**The ship.** Small animals can slip through a breach in the hull or a gap in the deck. Large ones cannot.
+
+In the code: `picker.js` is the Creature panel, and the choice is stored in `localStorage.abyssalMe` (-1 is the free
+camera). The player's creature is one of the bots, steered by `meStep` in `bots.js`; survival is at the end of that
+file. Gurgling is `botGurgle` in `bots.js` and `gurgle` in `audio.js`. What counts as cover is each tile's `cover`
+list (`gen.js`). The ship is a mesh, not rock, so it has its own collision field (`shipBuild`, `shipD` in `bots.js`):
+the distance to the nearest timber, sampled on a quarter-meter grid built from the mesh at load time. An animal is
+stopped wherever that distance is smaller than its own thickness.
+
+## The sonar
+
+While you are diving, a soft disc in the corner shows every creature within 100 m (`sonarDraw` in `bots.js`). A
+distant creature is a wide blur that tightens into a sharp dot as it gets closer, and echoes fade toward the edge of
+the disc. When you play a creature, the color tells you what each echo means to your species: something you can eat,
+something that can eat you, or neither. With the free camera, the color runs from pale for harmless animals through
+amber to red for the big hunters. Other players are labeled with their names.
+
+## Multiplayer
+
+Everyone shares one sea. It can be served by Cloudflare Workers or by your own server (OpenResty, which is nginx with
+Lua). [`server/README.md`](server/README.md) explains how to run and deploy both.
+
+The server only relays players. Each browser runs its own bots and generates its own terrain. On the client
+(`source/src/net.js`), another player is one more entry in `bots`, moved by what the server relays. You see them,
+their name appears on the sonar, you hear them gurgle from where they are, and you can bite them with the left mouse
+button like anything else. The server checks each bite and notifies the player who was bitten. The name field in the
+menu is what other players see. A page opened from a file, or from a host without the server, plays alone.
+
+The limits are set to match each other (`source/src/bots.js`, `server/src/sea.js`, `server/openresty/sea.lua`):
+
+- The server tells you about at most the 40 nearest players, which is also how many the game draws.
+- Your own bots make room for players: from 26 bots when nobody is near (20 on Medium, 14 on Low) down to 8 (6 and
+  4), so the sea is never players only.
+- A full sea (100 players on Cloudflare, 300 on your own server) turns newcomers away. They play alone with the bots
+  and are let in automatically as soon as a place frees up.
+
+## Detail levels
+
+The **Detail** row in the menu's **Graphics settings** panel picks the detail level; the current one is lit. Each level is the same world, built with less in it, and with fewer creatures around you (26, 20 or 14):
+
+| Level | What it is | Picked on a first visit for |
+|---|---|---|
+| **High** | The full scene | Computers |
+| **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | Phones with 8 GB of memory |
+| **Low** | A quarter of the leaves, no anti-aliasing, coarser rocks and corals, simpler lighting, 480p to start with | Other phones, and computers with 4 GB of memory or less |
+
+If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, water and sound settings for the next visit.
+
+## Graphics settings
+
+The **Graphics settings** panel in the menu overrides what the detail level chose: draw distance (80 / 105 / 135 m),
+resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow map size, anti-aliasing, light rays
+and creature shadows. Choosing a detail level resets them. The settings take effect after a reload. If you leave the
+panel with changes you have not applied, the game asks whether to apply them, discard them or keep editing. They are
+stored in `localStorage.abyssalGfx` (see `source/src/quality.js`).
+
+The draw distance is a single number for everything: the water's haze closes in at that distance, and every draw
+limit and fade sits behind it. While tiles ahead are still being generated, the haze is pulled in to what is already
+loaded, so nothing pops into view.
+
+## Sound settings
+
+The **Sound settings** panel in the menu has five levels, each off / low / medium / high. Changes are heard right
+away:
+
+- the overall volume;
+- the water (rumble, surface wash, rush);
+- the music (drone and chimes);
+- the sea life (bubbles, distant whale calls);
+- the gurgling of players' creatures.
+
+They are stored in `localStorage.abyssalSnd` (see `source/src/audio.js`).
+
+## Controls
+
+| | Keyboard & mouse |
+|---|---|
+| Look around | Move the mouse |
+| Swim | `W` `A` `S` `D` |
+| Up / down (free camera) | `E` / `Q` |
+| Swim faster | Hold `Shift` |
+| Burst of speed (playing a creature) | `Shift` twice |
+| Bite, strike with the claws, feed (playing a creature) | Left mouse button |
+| Gurgle (playing a creature) | Hold the right mouse button |
+| Camera nearer, further (playing a creature) | Mouse wheel |
+| Jump to a viewpoint | `1` to `6` in the home region, `7` to `0` in the deep |
+| Menu | `Esc` releases the mouse and opens the menu with the list of controls; **Resume** takes you back. The menu also has the creature button, and your name when there is a multiplayer server |
+| Sound on / off | `M` (sound starts when you dive in) |
+| Performance stats | `H` |
+| Detail level, water, graphics | **Graphics settings** in the menu (applying them reloads the page) |
+| Volume of water, music, sea life, gurgling | **Sound settings** in the menu |
+
+The seabed, cliffs and arches are solid: you glide along the rock instead of swimming into it, and you still fit through every tunnel and arch. You can swim through kelp, plants, corals, sponges, loose rocks, the floating boulders and the whale tail. The ship stops creatures at its timbers, but the free camera passes through it.
+
+**On a touchscreen:** hold one finger down to swim forward and slide it to steer. Put a second finger down to go faster. The `≡` button in the corner opens the menu. Phones always show the scene in landscape and start on Low or Medium detail. (Touch support is experimental.)
+
+## Make it your own
+
+The readable source code is in the [`source`](source) folder. To change something and rebuild `index.html` you need [Node.js](https://nodejs.org) 18 or newer:
+
+```bash
+cd source
+npm install
+npm run build
+```
+
+This writes a new `index.html` next to this README, and a copy for the multiplayer server in `server/public`. `npm run build:readable` writes an unminified version instead, which is easier to debug in the browser's developer tools.
+
+`npm run build:dev` writes a separate `dev.html` with extra tools that are not part of `index.html`: `F` flies the camera along a one-minute path through the home region, and `B` runs that flight as a benchmark and reports frame and GPU times.
+
+| File | What's inside |
+|---|---|
+| [`source/src/layout.js`](source/src/layout.js) | The hand-made home region: rock walls, arches, tunnels, the purple zone and the magenta patches |
+| [`source/src/gen.js`](source/src/gen.js) | The tile generator (runs in web workers): terrain mesh, kelp forests, plants, rocks, sponge gardens, fish schools, mantas, skylight, collision. **A good place to start.** |
+| [`source/src/stream.js`](source/src/stream.js) | The endless world: which tiles are loaded, the density computation on the GPU, uploads, wrapped shadow map, culling and drawing of tiles, collision lookup |
+| [`source/src/meshes.js`](source/src/meshes.js) | The ship, whale tail, manta, fish, boulders, sponges and corals, built from simple shapes |
+| [`source/src/creatures.js`](source/src/creatures.js) | The ten species: their sizes, speeds, depths and procedural bodies |
+| [`source/src/bots.js`](source/src/bots.js) | How the creatures behave around the camera, the creature you play, survival, gurgling, the sonar, and how many creatures there are |
+| [`source/src/picker.js`](source/src/picker.js) | The menu's creature panel |
+| [`source/src/net.js`](source/src/net.js) | Multiplayer, client side: the connection, and other players among the creatures |
+| [`server`](server) | Multiplayer, server side: for Cloudflare Workers and for OpenResty, with its own README |
+| [`source/src/gpu.js`](source/src/gpu.js) | The renderer's setup: device, textures, samplers and pipelines |
+| [`source/src/shaders.js`](source/src/shaders.js) | The look: water and fog colors, lighting, kelp, rocks, the water surface and light rays (WGSL shader code) |
+| [`source/src/main.js`](source/src/main.js) | Loading, the frame loop, the camera, the controls, the six viewpoints and the camera path the home region is laid out around |
+| [`source/src/audio.js`](source/src/audio.js) | The soundscape |
+| [`source/src/quality.js`](source/src/quality.js) | The detail levels and the graphics, water and sound settings: what a device starts on, and what is remembered between visits |
+| [`source/src/math.js`](source/src/math.js) | Noise, random numbers and mesh-building helpers |
+| [`source/src/dev.js`](source/src/dev.js) | Development tools (fly-through, benchmark, hooks for automated tests), only in `dev.html` |
+| [`source/template.html`](source/template.html) | The page around the scene: loading bar, menu and its panels, links and their styles |
+
+Some easy first tweaks:
+
+- **Water color:** the three water presets in `WATERQ` in `quality.js` (`col` is the color), and `PCOL` (purple grotto) near the top of the shared scene code in `shaders.js`
+- **Sunlight color:** `SUNC` right next to `PCOL`
+- **Brightness and light rays:** `EXPO` and `RAYS` in `main.js`
+- **Swimming speed:** for the free camera, search for `26 : 7` in `main.js` (fast speed : normal speed); for a creature, `spd` in `CRIT` in `creatures.js`
+- **How much world is loaded:** `WIN` (tiles across the window, a power of two) and `TILE` in `math.js`
+- **What grows far from home:** the noise-driven rules in `gen.js` (`kelpDens`, `hot`, `zw`, the fish and manta dice)
+- **How many creatures there are:** `BOTN` in `bots.js`
+
+`dev.html#offscreen` renders into a texture instead of the canvas and exposes `window.abyssal` (see `dev.js`) for automated tests.
