@@ -6,6 +6,8 @@
   outrun whatever hunts you, and hide behind rock and kelp.
 - **One sea for everyone.** Other players swim among the sea's own creatures. You can see them, hear them, spot them
   on the sonar, eat them or get eaten.
+- **Crab battles.** Crabs fight each other, bots and players alike: strike, block, lose a claw, and eat the one
+  you beat.
 - **It never ends.** Swim in any direction and the world is generated around you. Come back later and every place is
   exactly as you left it.
 - **Made entirely by code.** No images, no 3D models, no sound files: **one small HTML file**, nothing to install.
@@ -26,7 +28,7 @@
 
 ## Play
 
-**https://abyssal-infinite.alexz15.com** - everyone there shares the same sea.
+**https://abyssal-infinite.alexz15.com** - multiplayer: everyone who opens it plays in the same sea.
 
 To play on your own, offline: download [`index.html`](index.html) and open it in **Chrome** or **Edge** on a desktop
 computer. You need a browser with **WebGPU**.
@@ -39,11 +41,13 @@ also choose the free camera and just look around.
 
 **Stay alive.** Health drains on its own over seven minutes, food restores it, and every bite you take costs you
 some. At zero you come back as a new creature of the same species. Hunters eat anything up to 60% of their own
-length; the small fish pick at plankton, the whale filters it, and the crab picks food off the floor.
+length; the small fish pick at plankton, the whale filters it, and the crab picks food off the floor. Hunters lose
+you when they cannot see you, so rock, kelp and the ship are places to hide.
 
-**Crabs fight each other**, bots and players alike: face the other crab and strike with the left button, or hold
-the right one to raise your claws and block. A beaten crab lies on its back for eight seconds: eat it, or it gets
-up again without its claws, which take 45 seconds each to grow back. Hunters lose you when they cannot see you, so rock, kelp and the ship are places to hide.
+**Crabs fight each other**, bots and players alike. Face the other crab and strike with the left button, or hold
+the right one to raise your claws and block. A strike can tear off a claw, and a crab with no claws cannot strike.
+A beaten crab lies on its back for eight seconds: eat it, or it gets up again without its claws. Claws grow back,
+one every 45 seconds.
 
 **Gurgle** to "talk": every species has its own voice, heard about 34 m away, and a nearby bot of your species
 answers. **The sonar** in the corner shows every creature within 100 m, colored by what it is to you: food, danger
