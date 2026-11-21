@@ -17,13 +17,14 @@
 > playable creatures and multiplayer.
 
 <p align="center">
-  <img src="screenshots/reef.jpg" width="31.2%" alt="A fish over a reef meadow between rock towers">
-  <img src="screenshots/surface.jpg" width="35%" alt="A shark under the rippling surface, beside a kelp stand">
-  <img src="screenshots/crab.jpg" width="30.9%" alt="A crab on the sea floor under a rock wall">
+  <img src="screenshots/home.jpg" width="36.3%" alt="The home scene: a whale's tail among kelp, rock and coral">
+  <img src="screenshots/reef.jpg" width="30.7%" alt="A fish between rock towers under the rippling surface">
+  <img src="screenshots/surface.jpg" width="30%" alt="A shark under the rippling surface, beside a kelp stand">
 </p>
 <p align="center">
-  <img src="screenshots/kelp.jpg" width="50.3%" alt="A barracuda in the kelp forest">
-  <img src="screenshots/whales.jpg" width="48%" alt="Whales and a dolphin over the kelp">
+  <img src="screenshots/crab.jpg" width="27.4%" alt="A crab on the sea floor under a rock wall">
+  <img src="screenshots/kelp.jpg" width="35.6%" alt="A barracuda in the kelp forest">
+  <img src="screenshots/whales.jpg" width="34%" alt="Whales and a dolphin over the kelp">
 </p>
 
 ## Play
