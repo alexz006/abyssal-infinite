@@ -507,6 +507,9 @@ for (const n of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) canvas.a
 // ---------------------------------------------------------------- menu
 // The scene keeps rendering (blurred by CSS) behind the menu. Esc, losing the mouse or the corner button open it.
 let menu = true;
+// the focus ring shows from the first Tab until the next click or touch (template.html)
+addEventListener('keydown', (e) => e.code === 'Tab' && document.documentElement.classList.add('k'), true);
+addEventListener('pointerdown', () => document.documentElement.classList.remove('k'), true);
 const bDive = $('d');
 $('dh').hidden = !mob; // a phone has no key 1: the way home is a button beside the dive button
 const ui = (m) => {

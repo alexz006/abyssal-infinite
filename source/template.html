@@ -67,8 +67,10 @@ button, a {
 }
 @media (hover: hover) { button:hover, a:hover { transform: translateY(-.12em); filter: brightness(1.15); } }
 button:active, a:active { transform: translateY(.1em); filter: brightness(.9); }
-/* no focus ring: the dive button takes the focus by itself whenever the menu opens (so that Enter dives) */
+/* A focus ring only for someone going through the menu with Tab (the class k on <html>, main.js): the dive button
+   takes the focus by itself whenever the menu opens, so that Enter dives, and must not be ringed for that. */
 :focus, :focus-visible { outline: none; }
+.k :focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 #g { display: grid; gap: min(1.2em, 3.5vmin); }
 #d, #dh {
   padding: .9em; background: linear-gradient(#9ff6ff, #19c3d6); font-size: 1.3em;
