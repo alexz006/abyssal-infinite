@@ -225,8 +225,15 @@ let wave = null;
 if (GFX[7]) {
   // (a browser that cannot build this leaves the flat surface in place)
   device.pushErrorScope('validation');
-  const cp = (code) => device.createComputePipeline({ layout: 'auto', compute: { module: mod(code), entryPoint: 'main' } });
-  const pInit = cp(W_WINIT), pEvo = cp(W_WEVO), pRows = cp(W_WROWS), pCols = cp(W_WCOLS), pMipW = cp(W_WMIP);
+  // (a build that fails asynchronously is made once more the plain way, which reports it to the error scope above)
+  const cp = (code) => { const d = { layout: 'auto', compute: { module: mod(code), entryPoint: 'main' } }; return CP(d).catch(() => device.createComputePipeline(d)); };
+  const dW = { layout: pl0,
+    vertex: { module: mod(surfW(1)), entryPoint: 'vs', buffers: [{ arrayStride: 8, attributes: [A(0, 0, 'float32x2')] }] },
+    fragment: { entryPoint: 'fs', targets: [{ format: HDR }] },
+    primitive: { topology: 'triangle-list', cullMode: 'none' },
+    depthStencil: { format: DEPTH, depthWriteEnabled: true, depthCompare: 'greater' }, multisample: { count: AA } };
+  dW.fragment.module = dW.vertex.module;
+  const [pInit, pEvo, pRows, pCols, pMipW, pipe] = await Promise.all([cp(W_WINIT), cp(W_WEVO), cp(W_WROWS), cp(W_WCOLS), cp(W_WMIP), RP(dW).catch(() => device.createRenderPipeline(dW))]);
   const bytes = WN * WN * WC * 16, sb = () => device.createBuffer({ size: bytes, usage: BU.STORAGE });
   const h0 = sb(), sA = sb(), sB = sb(), tA = sb(), tB = sb();
   // The sea: a 6.5 m/s wind over 15 km of water (waves some 13 m long, under half a metre high) and a swell of 0.5 m,
@@ -247,12 +254,6 @@ if (GFX[7]) {
   for (let j = 0, o = 0; j < RING - 1; j++) for (let i = 0; i < SEG; i++) { const a = j * SEG + i, b = j * SEG + (i + 1) % SEG; I.set([a, b, a + SEG, b, b + SEG, a + SEG], o); o += 6; }
   const vb = device.createBuffer({ size: V.byteLength, usage: BU.VERTEX | BU.COPY_DST }), ib = device.createBuffer({ size: I.byteLength, usage: BU.INDEX | BU.COPY_DST });
   Q.writeBuffer(vb, 0, V); Q.writeBuffer(ib, 0, I);
-  const m = mod(surfW(1));
-  const pipe = device.createRenderPipeline({ layout: pl0,
-    vertex: { module: m, entryPoint: 'vs', buffers: [{ arrayStride: 8, attributes: [A(0, 0, 'float32x2')] }] },
-    fragment: { module: m, entryPoint: 'fs', targets: [{ format: HDR }] },
-    primitive: { topology: 'triangle-list', cullMode: 'none' },
-    depthStencil: { format: DEPTH, depthWriteEnabled: true, depthCompare: 'greater' }, multisample: { count: AA } });
   const T = new Float32Array(1);
   const sim = (c) => {
     T[0] = F[TIME] * WSPD % WLOOP; Q.writeBuffer(uS, 96, T);

@@ -53,7 +53,7 @@ function reach(x, z) {
 const DBYTES = NT * NYT * NT * 4; // room for a tall tile's block (the rift, math.js)
 // a block's density is computed over 8 frames, a tall one's over 24
 const slabsOf = (t) => (t.ny > NY ? 24 : 8);
-const pDens = device.createComputePipeline({ layout: 'auto', compute: { module: mod(W_DENS), entryPoint: 'main' } });
+const pDens = await CP({ layout: 'auto', compute: { module: mod(W_DENS), entryPoint: 'main' } });
 const densU = new ArrayBuffer(48), densUu = new Uint32Array(densU), densUi = new Int32Array(densU);
 densUu[0] = NT; densUu[2] = NT;
 const PRIMCAP = 96; // rock shapes one block can be given (two vec4 each)
@@ -157,8 +157,8 @@ function pump(fast) {
 // down to y = 0, and its depth is its height. Slid like that the map wraps around like the other world textures:
 // a new tile clears and redraws only its own patch.
 const SHP = 480, SHM = 6; // period in metres (more than the window and its slant), margin around a tile
-const pShClear = (() => { const m = mod('@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f { return vec4f(f32(i32(i & 1u) * 4 - 1), f32(i32(i >> 1u) * 4 - 1), 1., 1.); }');
-  return device.createRenderPipeline({ layout: 'auto', vertex: { module: m, entryPoint: 'vs' }, primitive: { topology: 'triangle-list' }, depthStencil: { format: DEPTH, depthWriteEnabled: true, depthCompare: 'always' } }); })();
+const pShClear = await (() => { const m = mod('@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f { return vec4f(f32(i32(i & 1u) * 4 - 1), f32(i32(i >> 1u) * 4 - 1), 1., 1.); }');
+  return RP({ layout: 'auto', vertex: { module: m, entryPoint: 'vs' }, primitive: { topology: 'triangle-list' }, depthStencil: { format: DEPTH, depthWriteEnabled: true, depthCompare: 'always' } }); })();
 const shadowQ = []; let shadowAll = 0; // 0: nothing loaded yet, 1: draw the whole map once the first window is in, 2: tile by tile
 const shadowPass = { colorAttachments: [], depthStencilAttachment: { view: tShadow.createView(), depthLoadOp: 'load', depthStoreOp: 'store' } };
 const SKX = SUN[0] / SUN[1], SKZ = SUN[2] / SUN[1];

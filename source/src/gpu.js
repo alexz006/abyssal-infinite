@@ -52,20 +52,25 @@ if (DBG) {
   addEventListener('unhandledrejection', (e) => dbg('Promise: ' + (e.reason && e.reason.message || e.reason)));
 }
 device.addEventListener('uncapturederror', (e) => { console.error('GPU: ' + e.error.message); dbg('GPU: ' + e.error.message); });
-// (and which pipeline an error belongs to: each is made inside its own error scopes, and a failed one is named by
-// its number, its entry points and the start of its vertex stage)
+// (and which pipeline an error belongs to: a failed one is named by its number, its entry points and the start of
+// its vertex stage - one built asynchronously by what its promise is rejected with, the picker's plain one by its
+// own error scopes)
 if (DBG) {
   const src = new WeakMap(), mk = device.createShaderModule.bind(device); let n = 0;
   device.createShaderModule = (d) => { const m = mk(d); src.set(m, d.code); m.getCompilationInfo().then((ci) => { for (const g of ci.messages) if (g.type === 'error') dbg('WGSL: ' + g.message + ' @' + g.lineNum + ': ' + d.code.split('\n')[g.lineNum - 1]); }); return m; };
   for (const f of ['createRenderPipeline', 'createComputePipeline']) {
-    const make = device[f].bind(device);
+    const make = device[f].bind(device), makeA = device[f + 'Async'].bind(device);
+    const teller = (d) => {
+      const k = ++n, st = d.vertex || d.compute, code = src.get(st.module) || '', at = code.indexOf('fn ' + st.entryPoint);
+      return (e) => { if (e) dbg('PIPELINE ' + k + ' (' + f.slice(6, 13) + ') ' + st.entryPoint + (d.fragment ? ' / ' + d.fragment.entryPoint + ' -> ' + d.fragment.targets.map((q) => q.format).join(',') : '') + ': ' + e.message + '\n' + code.slice(max(0, at - 260), at + 420)); };
+    };
     device[f] = (d) => {
-      const k = ++n; device.pushErrorScope('validation'); device.pushErrorScope('internal');
-      const p = make(d), st = d.vertex || d.compute, code = src.get(st.module) || '', at = code.indexOf('fn ' + st.entryPoint);
-      const say = (e) => { if (e) dbg('PIPELINE ' + k + ' (' + f.slice(6, 13) + ') ' + st.entryPoint + (d.fragment ? ' / ' + d.fragment.entryPoint + ' -> ' + d.fragment.targets.map((q) => q.format).join(',') : '') + ': ' + e.message + '\n' + code.slice(max(0, at - 260), at + 420)); };
+      const say = teller(d); device.pushErrorScope('validation'); device.pushErrorScope('internal');
+      const p = make(d);
       device.popErrorScope().then(say); device.popErrorScope().then(say);
       return p;
     };
+    device[f + 'Async'] = (d) => { const say = teller(d); return makeA(d).catch((e) => { say(e); throw e; }); };
   }
 }
 // out of memory or a GPU timeout: reload a level lower, or on Low say what happened
@@ -124,9 +129,13 @@ const pl0 = device.createPipelineLayout({ bindGroupLayouts: [bgl0] });
 const bglBlit = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: SS.FRAGMENT, texture: {} }, { binding: 1, visibility: SS.FRAGMENT, sampler: {} }] });
 const plBlit = device.createPipelineLayout({ bindGroupLayouts: [bglBlit] });
 const mBlit = mod(W_BLIT);
-const blitPipe = (entry, format, add) => device.createRenderPipeline({ layout: plBlit, vertex: { module: mBlit, entryPoint: 'vs' },
+// Pipelines are built asynchronously (RP, CP give a promise): the plain calls compile on the main thread of the
+// browser's GPU process, and a slow shader build there (a damaged driver shader cache did it in Edge) freezes every
+// tab until the browser's watchdog kills the process.
+const RP = (d) => device.createRenderPipelineAsync(d), CP = (d) => device.createComputePipelineAsync(d);
+const blitPipe = (entry, format, add) => RP({ layout: plBlit, vertex: { module: mBlit, entryPoint: 'vs' },
   fragment: { module: mBlit, entryPoint: entry, targets: [{ format, blend: add ? { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } } : undefined }] } });
-const pMip8 = blitPipe('fsMip', 'rgba8unorm'), pMip16 = blitPipe('fsMip', HDR), pDown0 = blitPipe('fsDown0', HDR), pDown = blitPipe('fsDown', HDR), pUp = blitPipe('fsUp', HDR, true);
+const qBlit = [blitPipe('fsMip', 'rgba8unorm'), blitPipe('fsMip', HDR), blitPipe('fsDown0', HDR), blitPipe('fsDown', HDR), blitPipe('fsUp', HDR, true)];
 const blitBG = (view) => device.createBindGroup({ layout: bglBlit, entries: [{ binding: 0, resource: view }, { binding: 1, resource: sClamp }] });
 const colorAtt = (view, clear) => ({ view, loadOp: clear ? 'clear' : 'load', storeOp: 'store', clearValue: [0, 0, 0, 0] });
 
@@ -139,48 +148,48 @@ const ibAnim = { arrayStride: 32, stepMode: 'instance', attributes: [A(2, 0, 'fl
 const ibBub = { arrayStride: 32, stepMode: 'instance', attributes: [A(0, 0, 'float32x4'), A(1, 16, 'float32x4')] };
 const ibSnow = { arrayStride: 16, stepMode: 'instance', attributes: [A(0, 0, 'float32x4')] };
 
-const scenePipe = (m, vsE, fsE, buffers, o = {}) => device.createRenderPipeline({ layout: pl0,
+const scenePipe = (m, vsE, fsE, buffers, o = {}) => RP({ layout: pl0,
   vertex: { module: m, entryPoint: vsE, buffers, constants: o.constants },
   fragment: { module: m, entryPoint: fsE, targets: [{ format: HDR, blend: o.blend }] },
   primitive: { topology: o.strip ? 'triangle-strip' : 'triangle-list', cullMode: o.cull || 'none' },
   depthStencil: { format: DEPTH, depthWriteEnabled: !o.blend, depthCompare: 'greater' }, multisample: { count: AA } });
-const shadowPipe = (m, vsE, buffers, o = {}) => device.createRenderPipeline({ layout: pl0,
+const shadowPipe = (m, vsE, buffers, o = {}) => RP({ layout: pl0,
   vertex: { module: m, entryPoint: vsE, buffers, constants: o.constants },
   primitive: { topology: o.strip ? 'triangle-strip' : 'triangle-list', cullMode: o.cull || 'none' },
   depthStencil: { format: DEPTH, depthWriteEnabled: true, depthCompare: 'less', depthBias: 2, depthBiasSlopeScale: 1.5 } });
 
 await say('Compiling shaders…', 0.05, 300);
 const mSolid = mod(W_SOLID), mLeaf = mod(W_LEAF), mAnim = mod(W_ANIM), mSurf = mod(W_SURF), mSpr = mod(W_SPR);
-const pTerrain = scenePipe(mSolid, 'vs', 'fs', [vbSolid, ibSolid], { cull: 'back' });
-const pSolid = scenePipe(mSolid, 'vs', 'fs', [vbSolid, ibSolid]);
-const pLeaf = scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 9 } });
-const pLeaf5 = scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 5 } });
-const pLeafS = scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 3, FAR: 70, LODW: 0 } });
-const pLeafF = scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 3 } });
-const pFish = scenePipe(mAnim, 'vsFish', 'fsFish', [vbSolid, ibAnim]);
-const pManta = scenePipe(mAnim, 'vsManta', 'fsManta', [vbSolid, ibAnim]);
-const pCrit = scenePipe(mod(W_CRIT), 'vs', 'fs', [vbSolid, ibAnim]);
-const pSurf = scenePipe(mSurf, 'vs', 'fs', [], { strip: true }), pBack = scenePipe(mSurf, 'vsB', 'fsB', [], { strip: true });
-const pBub = scenePipe(mSpr, 'vsBub', 'fsBub', [ibBub], { strip: true, blend: { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } } });
+const mWater = mod(W_WATER), mRays = mod(W_RAYS), mPost = mod(W_POST), mRB = mod(W_RBLUR);
 const ADD = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
-const pSnow = scenePipe(mSpr, 'vsSnow', 'fsSnow', [ibSnow], { strip: true, blend: ADD });
-// (no constants here: vsGl uses none of the module's overrides, and Safari fails to build a vertex stage that is given
-// one it does not use - "Vertex library failed creation" - which leaves every frame black)
-const pGl = scenePipe(mLeaf, 'vsGl', 'fsGl', [ibBub], { strip: true, blend: ADD });
-const pSolidSh = shadowPipe(mSolid, 'vs', [vbSolid, ibSolid]), pTerrSh = shadowPipe(mSolid, 'vs', [vbSolid, ibSolid], { cull: 'front' });
-const pLeafSh = shadowPipe(mLeaf, 'vs', [ibLeaf], { strip: true, constants: { ROWS: 3 } });
+const fullPipe = (m, format) => RP({ layout: 'auto', vertex: { module: m, entryPoint: 'vs' }, fragment: { module: m, entryPoint: 'fs', targets: [{ format }] } });
+// (all of them are started together and waited for once)
+const [pMip8, pMip16, pDown0, pDown, pUp, pTerrain, pSolid, pLeaf, pLeaf5, pLeafS, pLeafF, pFish, pManta, pCrit, pSurf, pBack, pBub, pSnow, pGl,
+  pSolidSh, pTerrSh, pLeafSh, pWater, pRB, pRays, pPost] = await Promise.all([...qBlit,
+  scenePipe(mSolid, 'vs', 'fs', [vbSolid, ibSolid], { cull: 'back' }),
+  scenePipe(mSolid, 'vs', 'fs', [vbSolid, ibSolid]),
+  scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 9 } }),
+  scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 5 } }),
+  scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 3, FAR: 70, LODW: 0 } }),
+  scenePipe(mLeaf, 'vs', 'fs', [ibLeaf], { strip: true, constants: { ROWS: 3 } }),
+  scenePipe(mAnim, 'vsFish', 'fsFish', [vbSolid, ibAnim]),
+  scenePipe(mAnim, 'vsManta', 'fsManta', [vbSolid, ibAnim]),
+  scenePipe(mod(W_CRIT), 'vs', 'fs', [vbSolid, ibAnim]),
+  scenePipe(mSurf, 'vs', 'fs', [], { strip: true }), scenePipe(mSurf, 'vsB', 'fsB', [], { strip: true }),
+  scenePipe(mSpr, 'vsBub', 'fsBub', [ibBub], { strip: true, blend: { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } } }),
+  scenePipe(mSpr, 'vsSnow', 'fsSnow', [ibSnow], { strip: true, blend: ADD }),
+  // (no constants here: vsGl uses none of the module's overrides, and Safari fails to build a vertex stage that is given
+  // one it does not use - "Vertex library failed creation" - which leaves every frame black)
+  scenePipe(mLeaf, 'vsGl', 'fsGl', [ibBub], { strip: true, blend: ADD }),
+  shadowPipe(mSolid, 'vs', [vbSolid, ibSolid]), shadowPipe(mSolid, 'vs', [vbSolid, ibSolid], { cull: 'front' }),
+  shadowPipe(mLeaf, 'vs', [ibLeaf], { strip: true, constants: { ROWS: 3 } }),
+  fullPipe(mWater, HDR), fullPipe(mRB, HDR), fullPipe(mRays, HDR), fullPipe(mPost, FMT)]);
 
-const mWater = mod(W_WATER);
-const pWater = device.createRenderPipeline({ layout: 'auto', vertex: { module: mWater, entryPoint: 'vs' }, fragment: { module: mWater, entryPoint: 'fs', targets: [{ format: HDR }] } });
 const bgWater = device.createBindGroup({ layout: pWater.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uboW } }] });
 const waterViews = [0, 1, 2, 3, 4].map((m) => tWater.createView({ baseMipLevel: m, mipLevelCount: 1 }));
 const waterBG = waterViews.map((v) => blitBG(v));
 const waterPass = waterViews.map((v) => ({ colorAttachments: [colorAtt(v, true)] }));
 
-const mRays = mod(W_RAYS), mPost = mod(W_POST), mRB = mod(W_RBLUR);
-const pRB = device.createRenderPipeline({ layout: 'auto', vertex: { module: mRB, entryPoint: 'vs' }, fragment: { module: mRB, entryPoint: 'fs', targets: [{ format: HDR }] } });
-const pRays = device.createRenderPipeline({ layout: 'auto', vertex: { module: mRays, entryPoint: 'vs' }, fragment: { module: mRays, entryPoint: 'fs', targets: [{ format: HDR }] } });
-const pPost = device.createRenderPipeline({ layout: 'auto', vertex: { module: mPost, entryPoint: 'vs' }, fragment: { module: mPost, entryPoint: 'fs', targets: [{ format: FMT }] } });
 
 
 // ---------------------------------------------------------------- sun

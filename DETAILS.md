@@ -255,6 +255,11 @@ Add `?debug` to the address. The page then shows, over the game, what the browse
 WebGPU and script errors, the pipeline an error belongs to (its entry points and the start of its vertex shader)
 and the state of the sound - what a phone has no console for (`DBG` and `dbg` in `source/src/gpu.js`).
 
+Pipelines are built with `createRenderPipelineAsync` / `createComputePipelineAsync` (`RP`, `CP` in
+`source/src/gpu.js`), all of the main ones at once. The plain calls compile on the main thread of the browser's GPU
+process: with a damaged shader cache of the graphics driver that took so long in Edge that every tab froze and the
+browser's watchdog killed the process, again and again.
+
 Two things Safari needed, kept in mind when changing the code: a pipeline must not be given an override constant
 that its vertex stage does not use (Safari fails to build it, and one failed pipeline leaves every frame black), and
 after the screen was locked the sound has to be restarted from a tap (`sound` in `source/src/audio.js`). With the

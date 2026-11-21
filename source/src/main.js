@@ -148,7 +148,7 @@ moveWindow(F[CX], F[CZ]);
 
 // ---------------------------------------------------------------- one-time bake: detail texture
 {
-  const m = mod(W_DETAIL), p = device.createRenderPipeline({ layout: 'auto', vertex: { module: m, entryPoint: 'vs' }, fragment: { module: m, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] } });
+  const m = mod(W_DETAIL), p = await fullPipe(m, 'rgba8unorm');
   const e = device.createCommandEncoder();
   let r = e.beginRenderPass({ colorAttachments: [colorAtt(tDetail.createView({ baseMipLevel: 0, mipLevelCount: 1 }), true)] });
   r.setPipeline(p); r.draw(3); r.end();
