@@ -29,7 +29,7 @@
 
 ## Play
 
-**https://abyssal-infinite.alexz15.com** - multiplayer: everyone who opens it plays in the same sea.
+**https://abyssal-infinite.wasd.fly** - multiplayer: everyone who opens it plays in the same sea.
 
 To play on your own, offline: download [`index.html`](index.html) and open it in **Chrome** or **Edge** on a desktop
 computer. You need a browser with **WebGPU**. It also runs on an iPhone with iOS 26 (Safari or Chrome).
