@@ -190,7 +190,7 @@ function resize() {
   bgBlur = device.createBindGroup({ layout: pRB.getBindGroupLayout(0), entries: [{ binding: 0, resource: vRay }] });
   passPost = { colorAttachments: [{ view: null, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] };
   bgRays = device.createBindGroup({ layout: pRays.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ubo } }, { binding: 1, resource: sRep }, { binding: 2, resource: sCmp },
-    { binding: 3, resource: tShadow.createView() }, { binding: 4, resource: tWater.createView() }, { binding: 5, resource: vDp }, { binding: 6, resource: tVol.createView() }, { binding: 7, resource: sWrap }] });
+    { binding: 3, resource: tShadow.createView() }, { binding: 4, resource: (tWS || tWater).createView() }, { binding: 5, resource: vDp }, { binding: 6, resource: tVol.createView() }, { binding: 7, resource: sWrap }] });
   bgPost = device.createBindGroup({ layout: pPost.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ubo } }, { binding: 1, resource: sClamp }, { binding: 2, resource: vRes },
     { binding: 3, resource: vRay2 }, { binding: 4, resource: vBl[0] }, { binding: 5, resource: vDp }] });
   bloomPass = []; bloomBG = [];
@@ -240,7 +240,7 @@ function render() {
   m[36] = rx; m[37] = 0; m[38] = rz; m[39] = TANH * asp;
   m[40] = ux; m[41] = uy; m[42] = uz; m[43] = TANH;
   m[44] = fx; m[45] = fy; m[46] = fz; m[47] = NEAR;
-  m[51] = zoneP(cx, cz);
+  m[51] = zoneL(cx, cz);
   let ek = (-cy - 8) / 26; ek = ek < 0 ? 0 : ek > 1 ? 1 : ek;
   let es = -cy / 22; es = es > 1 ? 1 : es; // the glare of the shallows
   // the eye gets used to the dark of the deep: from 60 m down, and once more in the abyss below 300 m
@@ -262,6 +262,7 @@ function render() {
   // animated water texture + mips
   let r = e.beginRenderPass(waterPass[0]); r.setPipeline(pWater); r.setBindGroup(0, bgWater); r.draw(3); r.end();
   for (let i = 1; i < 5; i++) { r = e.beginRenderPass(waterPass[i]); r.setPipeline(pMip16); r.setBindGroup(0, waterBG[i - 1]); r.draw(3); r.end(); }
+  if (wave) { const c = e.beginComputePass(); wave.sim(c); c.end(); } // the simulated waves (waves.js)
   // scene
   r = e.beginRenderPass(passScene);
   r.setBindGroup(0, bg0);
@@ -299,7 +300,7 @@ function render() {
   for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 22500) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.bigF, 5, false, 6, 58, 150); } }
   r.setPipeline(pLeafS);
   for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 4900) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.small, 1.5, false, 6, 0, 70); } }
-  if (!(HIDE & 32)) { r.setPipeline(pSurf); r.draw(4); }
+  if (!(HIDE & 32)) { if (wave) { r.setPipeline(wave.pipe); r.setVertexBuffer(0, wave.vb); r.setIndexBuffer(wave.ib, 'uint16'); r.drawIndexed(wave.n); } else { r.setPipeline(pSurf); r.draw(4); } }
   r.setPipeline(pBack); r.draw(4);
   r.setPipeline(pBub);
   for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[1]; if (n && t.d2 < 14400) { r.setVertexBuffer(0, t.miscB); r.draw(4, n, 0, t.misc[0]); } }
@@ -532,7 +533,7 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
   const yr = [...$('y').querySelectorAll('p')], wr = [...document.querySelectorAll('#yw p:not(.h)')];
   const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(1), ...wr.slice(1)];
   const mark = () => { rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; })); };
-  rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { pick[k] = i; if (!k) pick.splice(2, 7, ...gdef(2 - i)); mark(); }; }));
+  rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { pick[k] = i; if (!k) pick.splice(2, GFX.length, ...gdef(2 - i)); mark(); }; }));
   // the three settings buttons share a row; each opens its panel in place of the list of controls and closes it again
   const panel = (id) => {
     const open = $(id).hidden;
@@ -548,7 +549,7 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
   $('uk').onclick = () => { $('u').hidden = true; };
   $('ua').onclick = () => {
     if (pick[0] !== was[0] || pick[3] !== was[3]) keep('abyssal', 2 - pick[0]); // another level or resolution: the tuned resolution is forgotten
-    keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2, 9).join()); keep('abyssalWorld', pick.slice(9).join());
+    keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2, 2 + GFX.length).join()); keep('abyssalWorld', pick.slice(2 + GFX.length).join());
     try { sessionStorage.abyssalAt = JSON.stringify([F[CX], F[CY], F[CZ], F[YAW], F[PIT]].concat(me ? [me.s, me.x, me.y, me.z, me.yaw, me.pit, meHP] : [])); } catch {}
     location.reload();
   };

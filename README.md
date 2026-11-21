@@ -133,4 +133,4 @@ files and some easy first tweaks.
 
 ## License
 
-[MIT](LICENSE): free to use, change and share, including in your own projects. The original work is © 2026 Maksymilian Dendura; keep that notice when you publish a fork.
+[MIT](LICENSE): free to use, change and share, including in your own projects. The original work is © 2026 Maksymilian Dendura; keep that notice when you publish a fork. The optional wave simulation comes from his [web-ocean](https://github.com/Noniv/web-ocean) (MIT).

@@ -97,6 +97,8 @@ const tDetail = tex(1024, 1024, 'rgba8unorm', TU.RENDER_ATTACHMENT | TU.TEXTURE_
 const VOLN = WIN * TILE / 2; // the loaded window at half resolution
 const tVol = tex(VOLN, NY / 2, 'rg8unorm', TU.TEXTURE_BINDING | TU.COPY_DST, { d: VOLN });
 const tMap = tex(512, 512, 'rgba8unorm', TU.TEXTURE_BINDING | TU.COPY_DST);
+// the simulated waves (waves.js fills them; every scene shader reads them for the light they focus): a layer for a cascade
+const wtex = () => (GFX[7] ? device.createTexture({ size: [WN, WN, WC], format: HDR, mipLevelCount: WLOG + 1, usage: TU.TEXTURE_BINDING | TU.STORAGE_BINDING }) : null), tWD = wtex(), tWS = wtex();
 
 // (after the 60 floats of the scene: two vec4 for each creature that casts a shadow, see critSh in shaders.js)
 const UB = new Float32Array(60 + CSN * 8), UBS = new Float32Array(60 + CSN * 8);
@@ -109,11 +111,13 @@ const bgl0 = device.createBindGroupLayout({ entries: [
   { binding: 1, visibility: VF, sampler: {} }, { binding: 2, visibility: VF, sampler: {} }, { binding: 3, visibility: VF, sampler: { type: 'comparison' } },
   { binding: 4, visibility: VF, texture: { sampleType: 'depth' } },
   { binding: 5, visibility: VF, texture: {} }, { binding: 6, visibility: VF, texture: {} },
-  { binding: 7, visibility: VF, texture: { viewDimension: '3d' } }, { binding: 8, visibility: VF, texture: {} }] });
+  { binding: 7, visibility: VF, texture: { viewDimension: '3d' } }, { binding: 8, visibility: VF, texture: {} },
+  ...(tWD ? [9, 10].map((binding) => ({ binding, visibility: VF, texture: { viewDimension: '2d-array' } })) : [])] });
 const mkBG0 = (u, sh) => device.createBindGroup({ layout: bgl0, entries: [
   { binding: 0, resource: { buffer: u } }, { binding: 1, resource: sRep }, { binding: 2, resource: sWrap }, { binding: 3, resource: sCmp },
   { binding: 4, resource: sh.createView() }, { binding: 5, resource: tWater.createView() }, { binding: 6, resource: tDetail.createView() },
-  { binding: 7, resource: tVol.createView() }, { binding: 8, resource: tMap.createView() }] });
+  { binding: 7, resource: tVol.createView() }, { binding: 8, resource: tMap.createView() },
+  ...(tWD ? [{ binding: 9, resource: tWD.createView() }, { binding: 10, resource: tWS.createView() }] : [])] });
 const bg0 = mkBG0(ubo, tShadow), bg0s = mkBG0(uboS, tDummy);
 const pl0 = device.createPipelineLayout({ bindGroupLayouts: [bgl0] });
 

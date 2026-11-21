@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { transformSync } from 'esbuild';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const FILES = ['quality.js', 'math.js', 'creatures.js', 'shaders.js', 'layout.js', 'meshes.js', 'gpu.js', 'stream.js', 'bots.js', 'net.js', 'picker.js', 'main.js', 'audio.js']; // concatenation order matters
+const FILES = ['quality.js', 'math.js', 'creatures.js', 'shaders.js', 'layout.js', 'meshes.js', 'gpu.js', 'waves.js', 'stream.js', 'bots.js', 'net.js', 'picker.js', 'main.js', 'audio.js']; // concatenation order matters
 const WORKER = ['math.js', 'layout.js', 'gen.js']; // the tile generator: runs in web workers, carried in the page as a string
 const dev = process.argv.includes('--dev'), readable = dev || process.argv.includes('--readable');
 const out = dev ? 'dev.html' : 'index.html';

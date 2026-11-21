@@ -191,12 +191,28 @@ If loading crashes the tab, or the graphics driver gives up, the page starts aga
 ## Graphics settings
 
 The **Graphics** panel in the menu overrides what the detail level chose: draw distance (80 / 105 / 135 m),
-resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow map size, anti-aliasing, light rays
-and creature shadows. Choosing a detail level resets them. The settings take effect after a reload: when you leave the
+resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow map size, anti-aliasing, light rays,
+creature shadows and the sea surface. Choosing a detail level resets them. The settings take effect after a reload: when you leave the
 panel with changes, the game asks whether to apply them and reload, discard them or keep editing. After that
 reload you are where you were, not at home: the world is built around the same spot with the same view, and your
 creature and its health come back when you dive (`sessionStorage.abyssalAt`, `back` in `source/src/main.js`). They are
 stored in `localStorage.abyssalGfx` (see `source/src/quality.js`).
+
+**Surface** chooses what the sea looks like from below. **Flat** is a level sheet whose
+ripples come from a moving water texture. **Waves** (the default at every level) runs a simulated sea on the GPU every frame and draws the
+surface from it: an FFT ocean (a wind sea plus swell, three cascades of 128 x 128 samples over patches of 89, 17.3
+and 3.7 m; `WN`, `WC`, `WL`, `WLOOP` in `source/src/quality.js`) lifts a fan of rings around the camera and gives the
+slopes that bend the light (`source/src/waves.js`, `surfW` in `source/src/shaders.js`). The simulation is taken from
+[web-ocean](https://github.com/Noniv/web-ocean) by Maksymilian Dendura (MIT), cut down to what is seen from under
+water. It costs about 2 ms of GPU time a frame on a desktop card; if its shaders fail on a device, the flat surface
+is drawn instead. The caustics on the ground, plants and
+creatures and the light rays follow the same waves: the simulation also gives the curvature of the surface, and the
+light at a point is what the waves over it focus there, softer the deeper it is (`caus`, `wcur` and `W_RWV` in
+`source/src/shaders.js`). With the waves the sky in the window
+overhead is the sky of the hour set in the World panel: its own colours overhead and at the horizon for morning,
+noon, evening and night, drifting cumulus clouds that hide the sun's disc and shade each other (the low cloud layer
+of web-ocean), and stars at night (`W_SKY`, `W_SKYW` in `source/src/shaders.js`; `zen`, `hor`, `cl`, `cov` in
+`DAYQ`). A device that cannot run the simulation turns the setting off by itself.
 
 The draw distance is a single number for everything: the water's haze closes in at that distance, and every draw
 limit and fade sits behind it. While tiles ahead are still being generated, the haze is pulled in to what is already
@@ -300,6 +316,7 @@ This writes a new `index.html` next to this README, and a copy for the multiplay
 | [`source/src/net.js`](source/src/net.js) | Multiplayer, client side: the connection, and other players among the creatures |
 | [`server`](server) | Multiplayer, server side: for Cloudflare Workers and for OpenResty, with its own README |
 | [`source/src/gpu.js`](source/src/gpu.js) | The renderer's setup: device, textures, samplers and pipelines |
+| [`source/src/waves.js`](source/src/waves.js) | The simulated sea behind the Surface: Waves setting (FFT ocean from web-ocean) and its surface mesh |
 | [`source/src/shaders.js`](source/src/shaders.js) | The look: water and fog colors, lighting, kelp, rocks, the water surface and light rays (WGSL shader code) |
 | [`source/src/main.js`](source/src/main.js) | Loading, the frame loop, the camera, the controls, the six viewpoints and the camera path the home region is laid out around |
 | [`source/src/audio.js`](source/src/audio.js) | The soundscape |

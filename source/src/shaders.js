@@ -293,6 +293,7 @@ const S_B = S_G + /*wgsl*/`
 @group(0) @binding(6) var tD: texture_2d<f32>;
 @group(0) @binding(7) var tV: texture_3d<f32>;
 @group(0) @binding(8) var tM: texture_2d<f32>;
+${GFX[7] ? '@group(0) @binding(9) var tWD: texture_2d_array<f32>; @group(0) @binding(10) var tWS: texture_2d_array<f32>;' : ''}
 // the shadow map and the world textures below wrap around: they hold the loaded window of an endless world
 // shadow depth: height within a 70 m band that follows the sea floor
 // shadow depth: height within the band of voxels (and 4 m over, 6 m under it)
@@ -337,7 +338,26 @@ fn cuv(p: vec3f) -> vec2f { return p.xz - g.sun.xz * (p.y / g.sun.y); }
 // second layer off the first one's axes.
 fn unrep(q: vec2f) -> vec3f { let n = textureSampleLevel(tD, sR, q * .0067, 0.); let m = textureSampleLevel(tD, sR, q.yx * .019 + .31, 0.); return vec3f(q + (n.rg - .5) * 3.2 + (m.rg - .5) * 1.1, .62 + .76 * m.b); }
 fn turn(q: vec2f) -> vec2f { return vec2f(.8 * q.x - .6 * q.y, .6 * q.x + .8 * q.y); }
+${GFX[7] ? `// Surface: Waves - the light follows the simulated sea (waves.js). A ray of sunlight that enters the water at x comes
+// down at x + a * slope(x), a growing with the depth, so the light at a point is 1 / |det(1 + a * H)|, H the
+// curvature of the surface over it: bright lines where the waves focus it. Each cascade is read at a mip that widens
+// with the depth (deep down only the larger waves still draw a pattern), and the colours part a little.
+fn wcur(q: vec2f, h: f32) -> vec3f {
+  var WLV = vec3f(${WL}); var H = vec3f(0.);
+  for (var c = 0; c < ${WC}; c++) {
+    let lod = log2(max((h * .035 + .35) * ${WN}. / WLV[c], 1.));
+    if (lod < 6.) { let u = q / WLV[c]; H += vec3f(textureSampleLevel(tWS, sR, u, c, lod).zw, textureSampleLevel(tWD, sR, u, c, lod).w) * ss(6., 5., lod); }
+  }
+  return H;
+}
 fn caus(p: vec3f, d: f32) -> vec3f {
+  let h = max(0. - p.y / g.sun.y, 0.); let H = wcur(cuv(p), h);
+  let a = (h + 10.) * .42 / sqrt(1. + h * h * .003) * vec3f(.96, 1., 1.04);
+  let det = (1. + a * H.x) * (1. + a * H.y) - a * a * H.z * H.z;
+  let c = min(.62 + .95 / sqrt(det * det + .1), vec3f(2.8));
+  return mix(c, vec3f(.33), ss(35., 100., d));
+}
+fn caus2(p: vec3f, d: f32) -> f32 { return min(caus(p, d).g, 2.6); }` : `fn caus(p: vec3f, d: f32) -> vec3f {
   let w = unrep(cuv(p)); let q = w.xy;
   let o = vec2f(.004, .0025);
   let a = vec3f(textureSample(tW, sR, q / 3.3 + o).r, textureSample(tW, sR, q / 3.3).r, textureSample(tW, sR, q / 3.3 - o).r);
@@ -349,7 +369,7 @@ fn caus2(p: vec3f, d: f32) -> f32 {
   let w = unrep(cuv(p)); let q = w.xy;
   let c = min(pow(textureSample(tW, sR, q / 4.1).r, 1.4) * 2.6 * (.45 + textureSample(tW, sR, turn(q) / 6.9 + .37).r * 1.3) * w.z, 2.6);
   return mix(c, .33, ss(35., 100., d));
-}
+}`}
 fn sunE(y: f32, z: f32) -> vec3f { return SUNC * LITK * exp(kd(z) * (min(y, 0.) / g.sun.y)) * (.5 + .5 * sat(-y / 30.)); }
 // the skylight volume is 60 m tall and follows the sea floor like the voxel band; above and below it the edge layer holds
 fn vol(p: vec3f) -> vec4f { return textureSampleLevel(tV, sC, vec3f(p.x / ${SPAN}., clamp((p.y - gridBase(p.x)) / bandH(p.x), .0125, .9875), p.z / ${SPAN}.), 0.); }
@@ -872,8 +892,12 @@ fn critAlb(sp: u32, code0: u32, r: vec3f, up: f32, top: bool, gape: f32) -> vec3
 `;
 
 // ---------------------------------------------------------------- water surface seen from below
-const W_SURF = S_B + /*wgsl*/`
-struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f };
+// The surface is drawn in one of two ways (surfW(0), surfW(1)): flat, a sheet at sea level whose slopes come from the
+// water texture, or as waves (waves.js): a fan of rings around the camera (a: a vertex's place from it) lifted by
+// the simulated displacement tWD, each cascade read at the mip that suits the rings' spacing there and left out
+// where the rings are too coarse for it, with the slopes from tWS. p0 is the place before the waves moved it
+// sideways: the place the textures are read at.
+const W_SFV = /*wgsl*/`
 @vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
   var o: VO;
   let p = vec2f(f32(i & 1u), f32(i >> 1u)) * 2. - 1.;
@@ -882,11 +906,90 @@ struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f };
   o.cp = g.vp * vec4f(o.wp, 1.);
   return o;
 }
+`;
+const W_SWV = /*wgsl*/`
+@vertex fn vs(@location(0) a: vec2f) -> VO {
+  var o: VO;
+  let far = max(900., -g.cam.y * 60.);
+  let r = length(a); let q = a * (min(r, far) / max(r, 1e-4));
+  let p = g.cam.xz + q;
+  let sp = max(r * .1, .02);
+  var WLV = vec3f(${WL});
+  var d = vec3f(0.);
+  for (var c = 0; c < ${WC}; c++) {
+    let lod = log2(max(sp * ${WN}. / WLV[c], 1.));
+    if (lod < 5.5) { d += textureSampleLevel(tWD, sR, p / WLV[c], c, lod).xyz * ss(5.5, 4.5, lod); }
+  }
+  d *= ss(300., 120., r);
+  o.p0 = p; o.wp = vec3f(p.x + d.x, d.y, p.y + d.z);
+  o.cp = g.vp * vec4f(o.wp, 1.);
+  return o;
+}
+`;
+const W_SFS = 'let s2 = textureSample(tW, sR, turn(wq) / 4.7 + .2).ba; let s = (textureSample(tW, sR, wq / 13.).ba + vec2f(.8 * s2.x + .6 * s2.y, .8 * s2.y - .6 * s2.x) * .7 + textureSample(tW, sR, wq / 37. + .6).ba * .8) * fl;';
+const W_SWS = 'let s = (' + WL.map((l, c) => 'textureSample(tWS, sR, i.p0 / ' + l + ', ' + c + ').xy' + (c > 1 ? ' * .6' : '')).join(' + ') + ') * (-1.7 * fl);';
+// The sky in the window overhead. Flat: a gradient, with the slow, large waves of the water texture's blurred levels
+// standing in for clouds.
+const W_SKYF = /*wgsl*/`let sunv = 1.;
+  let cl = textureSampleLevel(tW, sR, rr.xz / max(rr.y, .2) * .11 + vec2f(g.cam.w * .004, g.cam.w * .0015) + i.wp.xz * .0007, 3.).ba;
+  let cloud = ss(.06, .2, cl.x + cl.y * .6) * ss(.15, .6, upk);
+  var skyc = mix(vec3f(.46, .82, 1.) * 1.3, vec3f(.15, .58, 1.) * 1.3, pow(upk, .7)) * vec3f(${DAYQ.win}) + vec3f(1., .9, .7) * SUNT * pow(sd, 6.) * .22;
+  skyc = mix(skyc, vec3f(1.3, 1.3, 1.27) * vec3f(${DAYQ.win}), cloud * .4);`;
+// Waves: the sky of the hour (DAYQ: its colour overhead and at the horizon, the colour of a sunlit cloud, how much
+// the clouds cover), stars at night, and the low cloud layer of web-ocean (js/wgsl/sky.js there): cumulus 2 km up,
+// drifting slowly, each cloud darker where more cloud lies between it and the sun and with a bright lining around
+// the sun. The sun's disc is hidden behind them (sunv).
+const W_SKY = /*wgsl*/`
+const KROT = mat2x2f(.8, .6, 0. - .6, .8);
+fn kHash(v: u32) -> u32 { let s = v * 747796405u + 2891336453u; let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u; return (w >> 22u) ^ w; }
+fn kCell(i: vec2i) -> u32 { return kHash(u32(i.x) * 1664525u + kHash(u32(i.y) + 1013904223u)); }
+fn kGrad(i: vec2i) -> vec2f { let a = f32(kCell(i)) * (6.2831853 / 4294967296.); return vec2f(cos(a), sin(a)); }
+fn kNoise(p: vec2f) -> f32 {
+  let i = vec2i(floor(p)); let f = p - floor(p);
+  let u = f * f * f * (f * (f * 6. - 15.) + 10.);
+  return mix(mix(dot(kGrad(i), f), dot(kGrad(i + vec2i(1, 0)), f - vec2f(1., 0.)), u.x),
+             mix(dot(kGrad(i + vec2i(0, 1)), f - vec2f(0., 1.)), dot(kGrad(i + vec2i(1, 1)), f - vec2f(1., 1.)), u.x), u.y);
+}
+fn kFbm(p: vec2f, oct: i32) -> f32 {
+  var s = 0.; var a = .5; var q = p;
+  for (var i = 0; i < oct; i++) {
+    var n = kNoise(q);
+    if (i >= 2) { n = mix(n, abs(n) * 2. - .38, .35); }
+    s += a * n; q = KROT * q * 2.03 + vec2f(13.1, 7.7); a *= .5;
+  }
+  return s;
+}
+fn kEdge(q: vec2f, oct: i32) -> f32 {
+  var p = q * .38 + vec2f(g.cam.w * .004, g.cam.w * .0012);
+  p += vec2f(kNoise(p * .3 + vec2f(1.7, 9.2)), kNoise(p * .3 + vec2f(8.3, 2.8))) * 1.4;
+  return kFbm(p * vec2f(1., 1.7), oct) * 1.3 + .5 + kNoise(q * .05 + vec2f(3.1, 1.3)) * .7 - ${1 - DAYQ.cov};
+}
+`;
+const W_SKYW = /*wgsl*/`var sunv = 1.;
+  var skyc = mix(vec3f(${DAYQ.hor}), vec3f(${DAYQ.zen}), pow(upk, .6)) + vec3f(1., .9, .7) * SUNT * pow(sd, 6.) * .22;
+  if (max(win3.x, max(win3.y, win3.z)) > .002 && rr.y > .02) {
+${WORLD[1] > 2 ? `    let sq = rr.xz / (1. + rr.y) * 70.; let sh = kCell(vec2i(floor(sq)));
+    let sp = fract(sq) - .2 - vec2f(f32(sh & 255u), f32((sh >> 8u) & 255u)) * (.6 / 255.);
+    skyc += vec3f(.55, .65, .85) * step(.9, f32(sh >> 16u) / 65535.) * ss(.14, .02, length(sp)) * (.3 + f32((sh >> 12u) & 15u) / 15.);
+` : ''}    let ct = 2. / max(rr.y, .05); let far = ss(36., 18., ct);
+    let cq = rr.xz * ct * 2.2 + g.cam.xz * .001;
+    let cd = sat(kEdge(cq, 5) / .45) * far;
+    if (cd > .002) {
+      let sx = g.sun.xz / max(length(g.sun.xz), 1e-4);
+      let s1 = sat(kEdge(cq + sx * .25, 3) / .45) * far;
+      let tau = cd * 2.4; let al = 1. - exp(0. - tau);
+      let cc = vec3f(${DAYQ.cl}) * (.58 + .42 * exp(0. - (cd * .5 + s1 * 1.6) * 1.1)) + vec3f(1., .93, .8) * SUNT * pow(sd, 10.) * tau * exp(0. - tau) * 1.6;
+      skyc = mix(skyc, cc, al); sunv = 1. - al;
+    }
+  }`;
+const surfW = (wv) => S_B + /*wgsl*/`
+struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f${wv ? ', @location(1) p0: vec2f' : ''} };
+${wv ? W_SKY + W_SWV : W_SFV}
 @fragment fn fs(i: VO) -> @location(0) vec4f {
   let v = i.wp - g.cam.xyz; let d = length(v); let V = v / d;
   let fl = ss(260., 60., d);
-  let wq = unrep(i.wp.xz).xy; let s2 = textureSample(tW, sR, turn(wq) / 4.7 + .2).ba;
-  let s = (textureSample(tW, sR, wq / 13.).ba + vec2f(.8 * s2.x + .6 * s2.y, .8 * s2.y - .6 * s2.x) * .7 + textureSample(tW, sR, wq / 37. + .6).ba * .8) * fl;
+  let wq = unrep(i.wp.xz).xy;
+  ${wv ? W_SWS : W_SFS}
   let n = normalize(vec3f(-s.x * .8, -1., -s.y * .8));
   let ci = sat(dot(V, -n));
   let k = 1. - 1.769 * (1. - ci * ci);
@@ -900,17 +1003,14 @@ struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f };
   // the sky in it: deeper blue overhead, pale towards its edge, a glow around the sun, and clouds drifting over
   // (the slow, large waves of the water texture's blurred levels stand in for them)
   let upk = sat(rr.y);
-  let cl = textureSampleLevel(tW, sR, rr.xz / max(rr.y, .2) * .11 + vec2f(g.cam.w * .004, g.cam.w * .0015) + i.wp.xz * .0007, 3.).ba;
-  let cloud = ss(.06, .2, cl.x + cl.y * .6) * ss(.15, .6, upk);
-  var skyc = mix(vec3f(.46, .82, 1.) * 1.3, vec3f(.15, .58, 1.) * 1.3, pow(upk, .7)) * vec3f(${DAYQ.win}) + vec3f(1., .9, .7) * SUNT * pow(sd, 6.) * .22;
-  skyc = mix(skyc, vec3f(1.3, 1.3, 1.27) * vec3f(${DAYQ.win}), cloud * .4);
+  ${wv ? W_SKYW : W_SKYF}
   // the wave slopes tilt the view of it: bright and dark bands, and glints on the steepest of them
   let glint = pow(sat(length(s) * 1.5 - .5), 3.) * (.4 + 1.6 * pow(sd, 4.));
-  let sky = (skyc * clamp(1. + 3.8 * (s.x * .6 - s.y * .8), .25, 3.) + vec3f(1., .95, .85) * SUNT * (pow(sd, 60.) * 1.3 + pow(sd, 500.) * 12. + glint) + vec3f(1., .97, .9) * vec3f(${DAYQ.win}) * rim * .3) * (1. - fr);
+  let sky = (skyc * ${wv ? 'clamp(1. + 1.8 * (s.x * .6 - s.y * .8), .62, 1.9)' : 'clamp(1. + 3.8 * (s.x * .6 - s.y * .8), .25, 3.)'} + vec3f(1., .95, .85) * SUNT * ((pow(sd, 60.) * 1.3 + pow(sd, 500.) * 12.) * sunv + glint) + vec3f(1., .97, .9) * vec3f(${DAYQ.win}) * rim * .3) * (1. - fr);
   let z = zone(g.cam.xyz + V * min(d, 150.)); // the ground map only covers the loaded window
   // outside the window the surface is a mirror of the water below: it shimmers with the light that plays on it
   let R = reflect(V, n);
-  let shim = textureSample(tW, sR, wq / 9. + vec2f(.3, .7)).r * fl;
+  let shim = ${wv ? '0.' : 'textureSample(tW, sR, wq / 9. + vec2f(.3, .7)).r * fl'}; // (off with the waves for now: being judged)
   let refl = fogIn(i.wp, R, 300., z, g.sun.xyz) * (1.05 + .8 * shim) + vec3f(.012, .045, .045) * exp(g.cam.y * .04) * (.5 + shim);
   let c = mix(refl, sky, win3);
   return fin(fog(c, i.wp, z));
@@ -928,6 +1028,7 @@ struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f };
   return fin(fog(vec3f(0.), p, g.sun.w));
 }
 `;
+const W_SURF = surfW(0);
 
 // ---------------------------------------------------------------- sprites: bubbles (alpha) and drifting particles (additive)
 const W_SPR = S_B + /*wgsl*/`
@@ -994,12 +1095,17 @@ fn quad(i: u32) -> vec2f { return vec2f(f32(i & 1u), f32(i >> 1u)) * 2. - 1.; }
 `;
 
 // ---------------------------------------------------------------- volumetric light shafts (half res)
+// With Surface: Waves the shafts are the light the two larger cascades focus (as caus does, by the sum of the
+// curvatures alone), read coarser than the caustics: a shaft is the path of a bright patch through the water.
+// The depth it is worked out for is held between 12 and 45 m: the shafts reach the surface and the deep, as the
+// flat surface's do (the water's glow at any depth is theirs).
+const W_RWV = 'let hh = clamp(0. - p.y / sx.y, 12., 45.); let lp = textureSampleLevel(tW, sR, q / ' + WL[0] + ', 0, log2(max(hh * ' + WN * 0.06 / WL[0] + ', 2.))).zw + textureSampleLevel(tW, sR, q / ' + WL[1] + ', 1, log2(max(hh * ' + WN * 0.06 / WL[1] + ', 4.))).zw; let pat = ss(.7, 1.8, 1. / max(abs(1. + hh * .25 * (lp.x + lp.y)), .25));';
 const W_RAYS = S_G + W_FS + /*wgsl*/`
 @group(0) @binding(0) var<uniform> g: G;
 @group(0) @binding(1) var sR: sampler;
 @group(0) @binding(2) var sS: sampler_comparison;
 @group(0) @binding(3) var tSh: texture_depth_2d;
-@group(0) @binding(4) var tW: texture_2d<f32>;
+@group(0) @binding(4) var tW: texture_2d${GFX[7] ? '_array' : ''}<f32>;
 @group(0) @binding(5) var tDp: texture_depth${AA > 1 ? '_multisampled' : ''}_2d;
 @group(0) @binding(6) var tV: texture_3d<f32>;
 @group(0) @binding(7) var sC: sampler;
@@ -1023,7 +1129,7 @@ const W_RAYS = S_G + W_FS + /*wgsl*/`
     let s = g.sm * vec4f(p, 1.);
     let vis = textureSampleCompareLevel(tSh, sS, vec2f(s.x * .5 + .5, .5 - s.y * .5), (gridBase(p.x) + (bandH(p.x) + 4.) - p.y) / (bandH(p.x) + 10.) - .002);
     let q = p.xz - sx.xz * (p.y / sx.y);
-    let pat = ss(.3, .7, textureSampleLevel(tW, sR, q / 27., 2.5).r) * ss(.15, .6, textureSampleLevel(tW, sR, q.yx / 11. + .3, 2.).r);
+    ${GFX[7] ? W_RWV : 'let pat = ss(.3, .7, textureSampleLevel(tW, sR, q / 27., 2.5).r) * ss(.15, .6, textureSampleLevel(tW, sR, q.yx / 11. + .3, 2.).r);'}
     let o = textureSampleLevel(tV, sC, vec3f(p.x / ${SPAN}., clamp((p.y - gridBase(p.x)) / bandH(p.x), .0125, .9875), p.z / ${SPAN}.), 0.).r;
     let mist = sat(1. - (o - .5) * 3.4);
     acc += exp(-sgz * t + k * (p.y / sx.y)) * (vis * (.012 + pat * 6.) * (1. + 1.2 * mist * mist));

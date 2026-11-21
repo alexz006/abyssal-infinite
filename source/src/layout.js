@@ -36,6 +36,10 @@ const CLEARS = [
 const PURPLE = [6, 84];
 // the purple grotto at home, and far from home purple reaches that the noise lays out
 const zoneP = (x, z) => max(sstep(44, 26, hypot(x - PURPLE[0], z - PURPLE[1])), sstep(0.6, 0.7, fbm(x * 0.005, 21, z * 0.005, 2)) * sstep(260, 420, hypot(x, z)));
+// The purple water and light keep to the shelf: where the sea floor goes down (deepK) and in the rift the zone's own
+// light, which dies out a few dozen metres down, would leave the deep black, so there the water stays as it is
+// everywhere else. The purple growth (gen.js) still follows zoneP.
+const zoneL = (x, z) => zoneP(x, z) * (1 - sstep(0.08, 0.4, deepK(x))) * sstep(RHW, RHW + RTW + 40, abs(x - riftX(z)));
 const MAGENTA = [[14, 6, 13], [-4, 20, 9], [6, 84, 30], [-58, 8, 10], [50, 30, 12], [8, -70, 10], [-12, -98, 9], [-36, 44, 9], [-46, -60, 9], [24, 42, 8], [-56, 26, 9], [-44, 38, 8], [-10, 44, 8], [12, 24, 8], [-50, -45, 8]];
 const magAt = (x, z) => {
   let m = sstep(0.54, 0.66, fbm(x * 0.03, 7, z * 0.03, 3)) * 0.9;

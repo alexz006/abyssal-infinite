@@ -486,7 +486,7 @@ function genTile(tx, tz, D, OY, ny) {
     const x = X0 + (i + 0.5) / GT * TW, z = Z0 + (j + 0.5) / GT * TW, o = (i + GT * j) * 4;
     const pk = plainK(x);
     gm[o] = magAt(x, z) * (1 - 0.85 * pk) * 255; gm[o + 1] = sstep(0.12, 0.5, shoreK(x) + 0.25 * (fbm(x * 0.02, 5, z * 0.02, 2) - 0.5)) * 255;
-    gm[o + 2] = zoneP(x, z) * (1 - pk) * 255; gm[o + 3] = max(sstep(0.42, 0.6, fbm(x * 0.04, 3, z * 0.04, 3)), 0.9 * pk) * 255;
+    gm[o + 2] = zoneL(x, z) * (1 - pk) * 255; gm[o + 3] = max(sstep(0.42, 0.6, fbm(x * 0.04, 3, z * 0.04, 3)), 0.9 * pk) * 255;
   }
   // --- distance to the rock for the camera's collision, in 1/127 m (> 0 in rock, clamped to ±1 m), kept only in the
   // 4x4x4-voxel bricks near the surface. CI per brick: 0 all water, 1 all rock, n brick n-2 in CG.
