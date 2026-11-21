@@ -132,7 +132,8 @@ boulder, the ship, kelp.
 
 **Gurgling** is how players "talk". Hold the right mouse button and your creature gurgles: its mouth moves, bubbles
 rise to the surface, and you hear that species' own sound. All species are equally loud. The dolphin whistles and
-clicks, and the whale sings, as the real animals do. A gurgle carries about a ship's length (34 m), gets quieter with
+clicks, and the whale sings, as the real animals do. A gurgle carries about a ship's length (34 m; a dolphin's twice and a whale's three times as far, and that much
+further off their own kind answers: `gurFar` in `creatures.js`), gets quieter with
 distance, and comes from the right direction. A nearby bot of the same species gurgles back, whether the gurgler is
 you or another player. A crab stops, turns to face whoever it is answering, and raises its claws instead of opening
 its mouth. While it does, hunters up to seven times its length (the perch, the barracuda) turn away from it.
@@ -195,7 +196,9 @@ resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow 
 creature shadows and the sea surface. Choosing a detail level resets them. The settings take effect after a reload: when you leave the
 panel with changes, the game asks whether to apply them and reload, discard them or keep editing. After that
 reload you are where you were, not at home: the world is built around the same spot with the same view, and your
-creature and its health come back when you dive (`sessionStorage.abyssalAt`, `back` in `source/src/main.js`). They are
+creature and its health come back when you dive. The same happens on every visit: once you have dived the browser
+keeps your place (`localStorage.abyssalAt`, `keepAt` and `back` in `source/src/main.js`), and the next time the
+page opens the sea is built there; key `1` takes you home. They are
 stored in `localStorage.abyssalGfx` (see `source/src/quality.js`).
 
 **Surface** chooses what the sea looks like from below. **Flat** is a level sheet whose
@@ -280,7 +283,7 @@ go faster. While you play a creature, three round buttons sit beside the sonar: 
 for the crab), **Gurgle** (held; **Block** for the crab) and **Burst**. The **Controls** row of the menu switches to
 a **Joystick** instead: the left thumb is a stick to swim by - forward, back and sideways, and faster when pushed far
 out - and the right thumb turns the view. The **−** and **+** buttons beside the menu button move the camera further and
-nearer, and a short tap on the sonar changes its range. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
+nearer, and a short tap on the sonar changes its range. The menu's dive button has a square Home button beside it (a phone has no key `1`): it puts you at the first viewpoint and resumes. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
 `source/src/main.js`. On a first visit a phone starts at the Low detail level.
 | Detail level, graphics | **Graphics** in the menu (applying them reloads the page) |
 | Water, number of creatures, time of day, colours | **World** in the menu (applying them reloads the page) |

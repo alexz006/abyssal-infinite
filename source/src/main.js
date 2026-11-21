@@ -128,11 +128,13 @@ for (const p of POSES) p[1] += await groundAt(p[0], p[2]);
 }
 startWorkers(POSES, flyPts);
 lookAt(...POSES[0]);
-// Settings were applied, which reloads the page: the world is built where the player was, not at home, with the
-// view as it was (back: the camera's place and angles, then the creature's species, place, angles and health; the
-// settings panels below save it, and the dive puts the creature back).
-let back = null; try { back = JSON.parse(sessionStorage.abyssalAt); sessionStorage.removeItem('abyssalAt'); } catch {}
-if (back && back.length > 4 && back.every(isFinite)) for (let i = 0; i < 5; i++) F[i] = back[i]; else back = null;
+// The browser remembers where the player is (localStorage.abyssalAt, written by keepAt: every few seconds once the
+// player has dived, when the page is left, and when settings are applied, which reloads it). The next visit builds
+// the world there, not at home, with the view as it was (back: the camera's place and angles, then the creature's
+// species, place, angles and health), and the dive puts the creature back. Key 1 is the way home.
+const keepAt = () => keep('abyssalAt', JSON.stringify([F[CX], F[CY], F[CZ], F[YAW], F[PIT]].concat(me ? [me.s, me.x, me.y, me.z, me.yaw, me.pit, meHP] : [])));
+let back = null; try { back = JSON.parse(localStorage.abyssalAt); } catch {}
+if (Array.isArray(back) && back.length > 4 && back.every(isFinite)) for (let i = 0; i < 5; i++) F[i] = back[i]; else back = null;
 moveWindow(F[CX], F[CZ]);
 {
   const all = nWanted, names = ['Sculpting the seabed…', 'Carving canyons…', 'Growing kelp…'];
@@ -506,6 +508,7 @@ for (const n of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) canvas.a
 // The scene keeps rendering (blurred by CSS) behind the menu. Esc, losing the mouse or the corner button open it.
 let menu = true;
 const bDive = $('d');
+$('dh').hidden = !mob; // a phone has no key 1: the way home is a button beside the dive button
 const ui = (m) => {
   if (dead) return;
   menu = m; body.className = m ? 'm' : document.pointerLockElement ? 'g p' : 'g';
@@ -513,6 +516,7 @@ const ui = (m) => {
   if (m) { release(); setTimeout(() => menu && bDive.focus(), 100); fitMenu(); } else document.activeElement.blur();
 };
 let first = true;
+setInterval(() => first || keepAt(), 3000); addEventListener('pagehide', () => first || keepAt());
 const go = () => {
   meSync();
   // the first dive starts as key 1 does: the creature at the first viewpoint, heading the way it looks
@@ -550,10 +554,11 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
   $('ua').onclick = () => {
     if (pick[0] !== was[0] || pick[3] !== was[3]) keep('abyssal', 2 - pick[0]); // another level or resolution: the tuned resolution is forgotten
     keep('abyssalWater', pick[1]); keep('abyssalGfx', pick.slice(2, 2 + GFX.length).join()); keep('abyssalWorld', pick.slice(2 + GFX.length).join());
-    try { sessionStorage.abyssalAt = JSON.stringify([F[CX], F[CY], F[CZ], F[YAW], F[PIT]].concat(me ? [me.s, me.x, me.y, me.z, me.yaw, me.pit, meHP] : [])); } catch {}
+    keepAt();
     location.reload();
   };
   $('x').onclick = sw('y'); $('xw').onclick = sw('yw'); $('xs').onclick = () => leave(() => panel('ys')); bDive.onclick = () => leave(go);
+  $('dh').onclick = () => leave(() => { back = null; lookAt(...POSES[0]); meWarp(); go(); }); // (back: the place kept from the last visit is dropped)
   // the sound panel: a choice is heard at once (audio.js)
   const srows = [...$('ys').querySelectorAll('p')], smark = () => srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === SND[k] ? 'on' : ''; }));
   srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { SND[k] = i; sound(); sndApply(); smark(); }; }));

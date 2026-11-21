@@ -67,12 +67,15 @@ button, a {
 }
 @media (hover: hover) { button:hover, a:hover { transform: translateY(-.12em); filter: brightness(1.15); } }
 button:active, a:active { transform: translateY(.1em); filter: brightness(.9); }
-:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+/* no focus ring: the dive button takes the focus by itself whenever the menu opens (so that Enter dives) */
+:focus, :focus-visible { outline: none; }
 #g { display: grid; gap: min(1.2em, 3.5vmin); }
-#d {
+#d, #dh {
   padding: .9em; background: linear-gradient(#9ff6ff, #19c3d6); font-size: 1.3em;
   box-shadow: inset 0 -.2em #0003, 0 0 2em #19c3d6b3;
 }
+/* the dive button, and beside it on a phone the way home: a square with a house on it */
+#dr { display: flex; gap: .5em; } #d { flex: 1; } #dh { padding: 0; aspect-ratio: 1; } #dh[hidden] { display: none; }
 
 /* GitHub and Feedback (the repository and its issues): always at the bottom of the menu */
 #f { position: absolute; left: 0; right: 0; bottom: 1.5em; display: flex; justify-content: center; gap: 1em; font-size: .8em; }
@@ -217,7 +220,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
   <div id=a>
     <div id=l><div id=p><i id=b></i></div><p id=s>Diving…</p><p id=w hidden>Use Google Chrome for optimal experience</p></div>
     <div id=g>
-      <button id=d>Dive in</button>
+      <div id=dr><button id=d>Dive in</button><button id=dh hidden aria-label=Home><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8.5h5.2v-6h3.6v6H19V12h3z"/></svg></button></div>
       <div id=cr>
         <button id=cb><svg id=cbk class=bk viewBox="0 0 24 24"><path d="M10.5 4.5 3 12l7.5 7.5 1.8-1.8-4.4-4.4H21v-2.6H7.9l4.4-4.4z"/></svg><canvas id=ct></canvas><span><i id=cl></i><b id=cn></b></span><svg id=cch class=bk viewBox="0 0 24 24"><path d="m9 5 7 7-7 7-1.8-1.8 5.2-5.2-5.2-5.2z"/></svg></button>
         <input id=nm maxlength=16 placeholder="Your name" title="Your name for other players" autocomplete=off spellcheck=false>

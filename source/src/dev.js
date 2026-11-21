@@ -85,6 +85,8 @@ window.abyssal = {
     return { n: out.length, max: Math.max(...out), mean: out.reduce((a, b) => a + b, 0) / out.length, share: near / shipG.length }; },
   audio: () => (AC ? [AC.state, +AC.currentTime.toFixed(2)] : null),
   // gurgling on or off, and n frames of the creatures' lives without drawing them
+  // one of the player's own kind d metres off, the player gurgling for n frames: did it answer?
+  reply: (d, n = 90) => { botHold = false; botAdd(me.s, [me.x + d, me.y, me.z], 0); const b = bots[bots.length - 1]; b.mode = 0; b.rc = 0; me.gur = true; let r = false; for (let i = 0; i < n; i++) { botReplies(1 / 30); r = r || b.rw > 0 || b.rt > 0; } me.gur = false; bots.splice(bots.indexOf(b), 1); return r; },
   gur: (on, n = 0) => { menu = false; kg = on ? 1 : 0; if (me) me.gur = !!on; for (let i = 0; i < n; i++) { F[TIME] += 1 / 30; botStep(1 / 30); } return me ? [me.talk, gurN] : null; },
   menu: () => { ui(true); const m = $('m'), h = m.firstElementChild, a = $('a'), f = $('f'); return { H: m.clientHeight, W: m.clientWidth, font: m.style.fontSize, titleTop: h.offsetTop, titleW: h.offsetWidth, bottom: a.offsetTop + a.offsetHeight, links: f.style.display === 'none' ? null : f.offsetTop, highs: CRIT.map((c) => +c.high.toFixed(3)) }; },
   hide: (v) => { HIDE = v; },

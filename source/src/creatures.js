@@ -45,6 +45,9 @@ const JAWS = [null,
 // plate inside the crescent, hinged along the line between the corners (yp: the height the shader swings it about).
 const SHARKM = { xh: 0.385, xf: 0.447, zc: 0.05, yp: -0.046, ang: 0.42 };
 const CRAB = 0, DOLPHIN = 7, WHALE = 9;
+// how much further than the others a species' gurgle carries (heard, audio.js, and answered, bots.js): a dolphin's
+// whistle twice, a whale's song three times as far
+const gurFar = (s) => (s === WHALE ? 3 : s === DOLPHIN ? 2 : 1);
 // who can eat whom: nothing longer than 60% of its own length; the whale eats no one
 const eats = (a, b) => a !== b && a !== WHALE && CRIT[b].len <= CRIT[a].len * 0.6;
 

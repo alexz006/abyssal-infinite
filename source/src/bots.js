@@ -421,7 +421,7 @@ function botReplies(dt) {
       b.rc = (b.rc || 0) - dt;
       if (b.rc <= 0 && (b.mode === 0 || b.mode === 4)) for (const p of gurWho) {
         // how far away its own kind still answers
-        if (p.s === b.s && hypot(b.x - p.x, b.y - p.y, b.z - p.z) < (p.s === CRAB ? 6 : 12 + CRIT[p.s].len * 3)) { b.rw = brr(0.4, 1.3); b.rto = p; break; }
+        if (p.s === b.s && hypot(b.x - p.x, b.y - p.y, b.z - p.z) < (p.s === CRAB ? 6 : 12 + CRIT[p.s].len * 3) * gurFar(p.s)) { b.rw = brr(0.4, 1.3); b.rto = p; break; }
       }
     }
     if (b.s === CRAB && (b.rw > 0 || b.rt > 0) && b.mode === 0 && b.rto) { b.v = 0; b.next = max(b.next, 0.6); b.ty = atan2(b.rto.z - b.z, b.rto.x - b.x); }

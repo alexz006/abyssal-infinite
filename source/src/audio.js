@@ -138,7 +138,7 @@ function mkSound(ac) {
     const q = GUR[b.s], ex = me ? me.x : F[CX], ey = me ? me.y : F[CY], ez = me ? me.z : F[CZ], dx = b.x - ex, dy = b.y - ey, dz = b.z - ez, d = hypot(dx, dy, dz);
     if (!(b.gt > t - 0.3)) b.gt = t; // (just begun, or back after a pause)
     // (a bot that answers is some way off and would be lost under the player's own voice: it is heard 1.6 times louder)
-    const near = max(0, 1 - d / GURFAR), k = near * near * (b.me || b.net ? 1 : 1.6), pan = clamp((dx * cos(F[YAW]) + dz * sin(F[YAW])) / max(d, 0.001) * min(1, d / 4), -0.9, 0.9);
+    const near = max(0, 1 - d / (GURFAR * gurFar(b.s))), k = near * near * (b.me || b.net ? 1 : 1.6), pan = clamp((dx * cos(F[YAW]) + dz * sin(F[YAW])) / max(d, 0.001) * min(1, d / 4), -0.9, 0.9);
     while (b.gt < t + 0.1) {
       if (!k) { b.gt += 0.2; continue; }
       if (b.s === DOLPHIN) { b.gt += dolphin(b.gt, pan, k); continue; }
