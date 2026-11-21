@@ -55,7 +55,7 @@ window.abyssal = {
   // the collision fields at the nose of the player's creature: [rock (above 0: inside), metres to the ship's timbers]
   nose: () => { const L = CRIT[me.s].len * 0.45, cp = cos(me.pit), x = me.x + cos(me.yaw) * cp * L, y = me.y + sin(me.pit) * L, z = me.z + sin(me.yaw) * cp * L; return [rockD(x, y, z), shipD(x, y, z), shipR(me.s)]; },
   drive: (n, mf, mr = 0, dyw = 0, fast = false) => { for (let i = 0; i < n; i++) meStep(1 / 30, dyw, 0, mf, mr, 0, fast); return [me.x, me.y, me.z, me.v, F[CX], F[CY], F[CZ]].map((v) => +v.toFixed(2)); },
-  picker: (s) => { body.className = 'm'; if (!pickOpen) pickToggle(); pickShow(s); },
+  picker: (s) => { body.className = 'm'; if (!pickOpen) $('cb').click(); pickShow(s); },
   // the view's pitch and the camera's zoom while playing; the menu as it is laid out (for tests of its fit)
   pitch: (p) => { F[PIT] = p; },
   zoom: (z) => { meZoom = z; },

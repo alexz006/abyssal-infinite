@@ -428,7 +428,7 @@ function frame(now) {
 // ---------------------------------------------------------------- input
 let shiftAt = -1e9, netShown = '';
 // the name other players see (the menu's field, kept between visits); without a server to reach the field is not shown
-{ const nm = $('nm'); nm.value = netName; if (!netURL()) $('cr').className = 'o'; nm.oninput = () => { netName = nm.value.trim().slice(0, 16); keep('abyssalName', netName); if (netOn) netSend({ t: 'hi', name: netName }); }; }
+{ const nm = $('nm'); nm.value = netName; if (!netURL()) nm.hidden = true; nm.oninput = () => { netName = nm.value.trim().slice(0, 16); keep('abyssalName', netName); if (netOn) netSend({ t: 'hi', name: netName }); }; }
 const key = (e, v) => {
   switch (e.code) {
     case 'KeyW': kf = v; break; case 'KeyS': kb = v; break; case 'KeyA': kl = v; break; case 'KeyD': kr = v; break;
@@ -456,7 +456,19 @@ addEventListener('mouseup', (e) => { if (e.button === 0) kbt = 0; });
 addEventListener('mousedown', (e) => { if (e.button === 2 && !menu) { sound(); kg = 1; } });
 addEventListener('mouseup', (e) => { if (e.button === 2) kg = 0; });
 addEventListener('contextmenu', (e) => { if (!menu) e.preventDefault(); });
-const capture = () => { sound(); const p = canvas.requestPointerLock({ unadjustedMovement: true }); if (p && p.catch) p.catch(() => canvas.requestPointerLock()).catch(() => 0); };
+// Asking for the mouse is refused for a moment after Esc gave it back (Chrome: 1.25 s after the key): then it is
+// asked for again once that moment has passed (the click's permission still holds). Until the mouse is taken the menu
+// button (#o) stays hidden (.w on <body>; taken, pointerlockchange sets the class anew); refused for good, it shows.
+let freed = -1e4;
+const lock = () => {
+  const p = canvas.requestPointerLock({ unadjustedMovement: true });
+  return p && p.catch ? p.catch(() => canvas.requestPointerLock()) : new Promise((ok, no) => { document.addEventListener('pointerlockchange', ok, { once: true }); document.addEventListener('pointerlockerror', no, { once: true }); });
+};
+const capture = () => {
+  sound(); body.classList.add('w');
+  const done = () => body.classList.remove('w');
+  lock().catch(() => { const t = freed + 1500 - performance.now(); if (t > 0) setTimeout(() => (menu ? done() : lock().catch(done)), t); else done(); });
+};
 canvas.addEventListener('click', capture);
 addEventListener('mousemove', (e) => { if (document.pointerLockElement === canvas) { mdx += e.movementX; mdy += e.movementY; } });
 addEventListener('blur', release);
@@ -511,12 +523,16 @@ let menu = true;
 addEventListener('keydown', (e) => e.code === 'Tab' && document.documentElement.classList.add('k'), true);
 addEventListener('pointerdown', () => document.documentElement.classList.remove('k'), true);
 const bDive = $('d');
-$('dh').hidden = !mob; // a phone has no key 1: the way home is a button beside the dive button
+// The way home is a button before the dive button: on a phone (it has no key 1) always, elsewhere where there is a
+// place kept from the last visit (back) or once a dive has begun. With a place kept, the dive button is Resume.
+$('dh').hidden = !mob && !back; if (back) bDive.textContent = 'Resume';
 const ui = (m) => {
   if (dead) return;
   menu = m; body.className = m ? 'm' : document.pointerLockElement ? 'g p' : 'g';
   // focus the dive button so Enter works (delayed: it can't take focus while still hidden)
-  if (m) { release(); setTimeout(() => menu && bDive.focus(), 100); fitMenu(); } else document.activeElement.blur();
+  // (once a dive has begun the dive button is Resume, with Home before it: changed as the menu comes back, not while it fades out)
+  // (the creature panel, left open by the dive, starts its preview again)
+  if (m) { if (!first) { bDive.textContent = 'Resume'; $('dh').hidden = false; } if (!$('cp').hidden) pickOpenUp(); release(); setTimeout(() => menu && bDive.focus(), 100); fitMenu(); } else document.activeElement.blur();
 };
 let first = true;
 setInterval(() => first || keepAt(), 3000); addEventListener('pagehide', () => first || keepAt());
@@ -526,32 +542,39 @@ const go = () => {
   if (first && !back) { lookAt(...POSES[0]); meWarp(); } first = false;
   if (back && me && me.s === back[5]) { me.x = back[6]; me.y = back[7]; me.z = back[8]; me.yaw = me.ty = back[9]; me.pit = back[10]; meHP = back[11]; } back = null;
   hudWho(); pickClose(); netConnect();
-  sound(); ui(false); bDive.textContent = 'Resume';
+  sound(); ui(false);
   // phones: go fullscreen and ask for landscape; where that is refused the CSS rotation still applies
   if (mob) document.documentElement.requestFullscreen?.()?.then(() => screen.orientation.lock('landscape')).catch(() => 0);
   if (!mob) capture();
 };
 bDive.onclick = go; $('o').onclick = () => ui(true);
-// The graphics and the world panels: each opens in place of the list of controls. Their rows are one list of choices:
-// detail level, water, the settings of GFX, then those of WORLD (creatures, time of day, colours).
+// The graphics and the world panels. Their rows are one list of choices: detail level, water, the settings of GFX,
+// then those of WORLD (creatures, time of day, colours).
 // Choices are only marked until the panels are left: the question asked then keeps them and reloads (they are compiled into the shaders and the
-// world's buffers). Picking a detail level marks the settings that level comes with.
+// world's buffers). Picking a detail level marks the settings that level comes with; a dot on the Graphics and World
+// tabs says they hold choices not applied yet.
 {
   const yr = [...$('y').querySelectorAll('p')], wr = [...document.querySelectorAll('#yw p:not(.h)')];
-  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(1), ...wr.slice(1)];
-  const mark = () => { rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; })); };
-  rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { pick[k] = i; if (!k) pick.splice(2, GFX.length, ...gdef(2 - i)); mark(); }; }));
-  // the three settings buttons share a row; each opens its panel in place of the list of controls and closes it again
-  const panel = (id) => {
-    const open = $(id).hidden;
-    PANELS.forEach(([p, b, name]) => { const on = open && p === id; $(p).hidden = !on; $(b).innerHTML = on ? BACK + 'Menu' : name; });
-    $('k').style.display = $('f').style.display = $('cr').style.display = open ? 'none' : ''; fitMenu();
+  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(1), ...wr.slice(1)], G = 2 + GFX.length;
+  const ch = (f) => pick.some((v, k) => v !== was[k] && f(k));
+  const mark = () => {
+    rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; }));
+    $('x').classList.toggle('ch', ch((k) => !k || (k > 1 && k < G))); $('xw').classList.toggle('ch', ch((k) => k === 1 || k >= G));
   };
-  // Leaving the graphics and world panels with choices that were not applied (to the main menu, to the sound panel,
-  // or diving) asks first: apply and reload, drop them, or stay. Going from one of the two to the other does not.
+  rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.onclick = () => { pick[k] = i; if (!k) pick.splice(2, GFX.length, ...gdef(2 - i)); mark(); }; }));
+  // The tabs (Controls, Graphics, World, Sound) and the creature button: each opens its pane under the tabs (a tab is
+  // lit while it is open, the creature button ringed; pressed again, it leads back to Controls).
+  const panes = ['kp', 'y', 'yw', 'ys', 'cp'], tabs = ['xc', 'x', 'xw', 'xs', 'cb'];
+  const panel = (id) => {
+    if (!$(id).hidden) return;
+    panes.forEach((p, i) => { $(p).hidden = p !== id; $(tabs[i]).classList.toggle(i < 4 ? 'on' : 'w', p === id); });
+    if (id === 'cp') pickOpenUp(); else pickClose();
+    $('sc').scrollTop = 0; fitMenu();
+  };
+  // Diving (or going home) with graphics or world choices that were not applied asks first: apply and reload, drop
+  // them, or stay. Going from tab to tab does not ask (the dot on Graphics and World shows what is waiting).
   let after = null;
-  const leave = (then) => { if (($('y').hidden && $('yw').hidden) || pick.join() === was.join()) then(); else { after = then; $('u').hidden = false; $('ua').focus(); } };
-  const sw = (id) => () => ($(id).hidden ? panel(id) : leave(() => panel(id)));
+  const leave = (then) => { if (pick.join() === was.join()) then(); else { after = then; $('u').hidden = false; $('ua').focus(); } };
   $('ud').onclick = () => { $('u').hidden = true; pick.splice(0, pick.length, ...was); mark(); after(); };
   $('uk').onclick = () => { $('u').hidden = true; };
   $('ua').onclick = () => {
@@ -560,7 +583,8 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
     keepAt();
     location.reload();
   };
-  $('x').onclick = sw('y'); $('xw').onclick = sw('yw'); $('xs').onclick = () => leave(() => panel('ys')); bDive.onclick = () => leave(go);
+  $('x').onclick = () => panel('y'); $('xw').onclick = () => panel('yw'); $('xs').onclick = () => panel('ys'); $('xc').onclick = () => panel('kp');
+  $('cb').onclick = () => panel($('cp').hidden ? 'cp' : 'kp'); bDive.onclick = () => leave(go);
   $('dh').onclick = () => leave(() => { back = null; lookAt(...POSES[0]); meWarp(); go(); }); // (back: the place kept from the last visit is dropped)
   // the sound panel: a choice is heard at once (audio.js)
   const srows = [...$('ys').querySelectorAll('p')], smark = () => srows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === SND[k] ? 'on' : ''; }));
@@ -574,9 +598,17 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
   hmark();
   mark();
 }
-// a phone's Controls row: taken at once, and the hint under it says how that way works
+// a phone's Scheme row: taken at once, and the rows under it say how that way works, a gesture a row
 {
-  const bs = [...$('tc').querySelectorAll('button')], mk = () => { bs.forEach((b, i) => { b.className = i === TJ ? 'on' : ''; }); $('h').textContent = TJ ? 'Left thumb swims · right thumb looks · push the stick far to go faster' : 'Hold to swim forward · slide to steer · second finger to go faster'; };
+  const GEST = [
+    [['M12 2a4 4 0 0 1 4 4h-2a2 2 0 1 0-4 0H8a4 4 0 0 1 4-4zm-1 6h2v6l4.5 1.2a2 2 0 0 1 1.5 2.2L18.4 22H9.6l-3.3-5.2 1.6-1.2L11 18V8z', 'Hold to swim forward'],
+      ['M4 11h3V8l4 4-4 4v-3H4zm16 0h-3V8l-4 4 4 4v-3h3zM11 5h2v14h-2z', 'Slide to steer'],
+      ['M7 7h2v8l1.6.4V7h2v8.9l1.4.4V9h2v7.8l1.6.4a2 2 0 0 1 1.4 2.3L18.6 22H9l-4-5 1.5-1.2L7 16.4z', 'Second finger to go faster']],
+    [['M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm0 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6z', 'Left thumb swims'],
+      ['M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z', 'Right thumb looks'],
+      ['M3 6h2v12H3zm4 0 7 6-7 6zm7 0 7 6-7 6z', 'Push the stick far to go faster']],
+  ];
+  const bs = [...$('tc').querySelectorAll('button')], mk = () => { bs.forEach((b, i) => { b.className = i === TJ ? 'on' : ''; }); $('h').innerHTML = GEST[TJ].map(([d, t]) => '<p><svg viewBox="0 0 24 24"><path d="' + d + '"/></svg>' + t + '</p>').join(''); };
   bs.forEach((b, i) => { b.onclick = () => { TJ = i; keep('abyssalTouch', i); release(); mk(); fitMenu(); }; }); mk();
 }
 // a phone's two buttons beside the menu button: the camera further from the creature in play, and nearer to it (the mouse wheel)
@@ -585,12 +617,12 @@ bDive.onclick = go; $('o').onclick = () => ui(true);
   const b = $(id), h = (v) => (e) => { e.preventDefault(); kz = v; meZoomBy(v * 0.08); };
   b.addEventListener('touchstart', h(d), { passive: false }); b.addEventListener('touchend', h(0)); b.addEventListener('touchcancel', h(0));
 });
-pickInit();
+pickInit(); $('cb').click(); // (the menu opens on the creature panel)
 // the line at the bottom left: who the player is (the score will stand here too)
 function hudWho() { $('hw').innerHTML = me ? 'Playing as <b>' + CRITNAME[me.s] + '</b>' : 'Free camera'; $('st').style.display = $('hb').style.display = me ? '' : 'none'; $('tb').className = $('tz').className = me ? 'c' : ''; if (me) { $('t1').textContent = me.s === CRAB ? 'Strike' : 'Bite'; $('t2').textContent = me.s === CRAB ? 'Block' : 'Gurgle'; } if (!me) $('hm').textContent = ''; }
 // the mouse wheel: the camera nearer to the creature in play, or further from it
 addEventListener('wheel', (e) => { if (!menu && me) meZoomBy(e.deltaY > 0 ? 0.12 : -0.12); }, { passive: true });
-document.addEventListener('pointerlockchange', () => ui(!document.pointerLockElement));
+document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement) freed = performance.now(); ui(!document.pointerLockElement); });
 
 // draw the first frame and wait for the GPU to finish it (pipelines get compiled on first use) before the reveal
 await say('Letting the light in…', 1, 400);

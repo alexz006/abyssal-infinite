@@ -11,7 +11,6 @@
 - **It never ends.** Swim in any direction and the world is generated around you. Come back later and every place is
   exactly as you left it.
 - **Made entirely by code.** No images, no 3D models, no sound files: **one small HTML file**, nothing to install.
-  (The one picture, on the loading screen, is a screenshot fetched from this repository, and is simply absent offline.)
 
 > A fork of [Abyssal Garden](https://github.com/Noniv/abyssal-garden) by Maksymilian Dendura (MIT), a single
 > hand-crafted underwater scene. This fork keeps that scene as your starting point and adds the endless sea, the

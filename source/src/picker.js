@@ -17,8 +17,6 @@ const CRITINFO = [
   { kind: 'hunter', food: [], note: 'The top of the chain: it can eat everything but the whale.' },
   { kind: 'gentle giant', food: ['plankton', 'krill'], note: 'A humpback. It eats none of the others, and nothing eats it. Slow to turn. Up through the surface at speed and it breaches.' },
 ];
-// the arrow of every button that leads back to the main menu
-const BACK = '<svg class=bk viewBox="0 0 24 24"><path d="M10.5 4.5 3 12l7.5 7.5 1.8-1.8-4.4-4.4H21v-2.6H7.9l4.4-4.4z"/></svg>';
 let pickOpen = false, pickSel = -1, pickYaw = 0.5, pickPit = 0.14, pickGrab = false, pickTouched = false, pickGpu = null;
 const pickLen = (l) => (l < 1 ? round(l * 100) + ' cm' : round(l * 10) / 10 + ' m');
 // a species' side view (the crab's: from in front) as a path of its mesh's triangles, one unit long
@@ -60,22 +58,11 @@ function pickShow(s) {
   if (!pickTouched) pickYaw = 0.5;
   $('ci').innerHTML = pickInfo(s);
 }
-// The panel is as tall as the longest of its texts needs, whoever is shown, so nothing under it moves with the choice.
-// Measured in the menu's own font size (em), which fitMenu may shrink afterwards.
-function pickFit() {
-  const cw = $('cw'), ci = $('ci'); let h = 0; cw.style.minHeight = '';
-  for (let s = -1; s < CRIT.length; s++) { ci.innerHTML = pickInfo(s); h = max(h, cw.offsetHeight); }
-  cw.style.minHeight = h / parseFloat(getComputedStyle(cw).fontSize) + 'em';
-}
 // the creature button: the chosen one's picture and name, under what the button does
-function pickName() { $('cn').textContent = pickSel < 0 ? 'Free camera' : CRITNAME[pickSel]; $('cl').textContent = pickOpen ? 'Main menu' : 'Choose creature'; pickThumb($('ct'), pickSel, false); }
-function pickClose() { if (!pickOpen) return; pickOpen = false; $('cp').hidden = true; $('a').className = ''; $('k').style.display = ''; $('f').style.display = ''; $('xr').style.display = ''; pickName(); fitMenu(); }
-function pickToggle() {
-  if (pickOpen) { pickClose(); return; }
-  pickOpen = true; $('cp').hidden = false; PANELS.forEach(([p, b, name]) => { $(p).hidden = true; $(b).textContent = name; }); $('xr').style.display = 'none';
-  $('a').className = 'w'; $('k').style.display = 'none'; $('f').style.display = 'none'; $('cb').className = '';
-  $('m').style.fontSize = ''; pickFit(); pickShow(pickSel); fitMenu();
-}
+function pickName() { $('cn').textContent = pickSel < 0 ? 'Free camera' : CRITNAME[pickSel]; pickThumb($('ct'), pickSel, false); }
+// the panel opened and closed (main.js: it is one of the menu's panes)
+function pickClose() { if (!pickOpen) return; pickOpen = false; pickName(); }
+function pickOpenUp() { pickOpen = true; $('cb').classList.remove('n'); pickShow(pickSel); }
 // builds the row of species and wires the panel (once the meshes are there)
 function pickInit() {
   const row = $('cs');
@@ -85,21 +72,19 @@ function pickInit() {
   }
   pickSel = mePick; pickName();
   // nothing chosen on any visit yet: the button draws the eye until the panel has been opened once
-  try { if (localStorage.abyssalMe == null) $('cb').className = 'n'; } catch {}
-  $('cb').onclick = pickToggle;
+  try { if (localStorage.abyssalMe == null) $('cb').classList.add('n'); } catch {}
   const cv = $('cv');
   cv.addEventListener('pointerdown', (e) => { pickGrab = pickTouched = true; cv.setPointerCapture(e.pointerId); });
   cv.addEventListener('pointerup', () => { pickGrab = false; });
   cv.addEventListener('pointermove', (e) => { if (pickGrab) { pickYaw -= e.movementX * 0.008; pickPit = clamp(pickPit + e.movementY * 0.006, -1.3, 1.3); } });
+  if (!OFF) pickMake().catch(() => {}); // (no model then, the panel works without it)
 }
-// draws the chosen species' model (called every frame while the panel is open)
-function pickDraw(now) {
-  if (!pickOpen || OFF || (pickSel < 0 && !pickGpu)) return; // (the free camera has no model: the canvas is only wiped of the last one)
-  const cv = $('cv'), w = cv.clientWidth, h = cv.clientHeight, d = min(devicePixelRatio || 1, 2), W = max(1, round(w * d)), H = max(1, round(h * d));
-  if (!w) return;
-  if (!pickGpu) {
-    const fmt = navigator.gpu.getPreferredCanvasFormat(), ctx = cv.getContext('webgpu'); ctx.configure({ device, format: fmt, alphaMode: 'premultiplied' });
-    const module = device.createShaderModule({ code: `
+// The model's pipeline is built asynchronously, in the background from the start (pickInit): built synchronously on
+// the first choice of a species, it held the whole page for a moment (and longer where the driver compiles slowly).
+// Until it is there the canvas stays empty; the rest of the panel works meanwhile.
+async function pickMake() {
+  const cv = $('cv'), fmt = navigator.gpu.getPreferredCanvasFormat(), ctx = cv.getContext('webgpu'); ctx.configure({ device, format: fmt, alphaMode: 'premultiplied' });
+  const module = device.createShaderModule({ code: `
 struct G { vp: mat4x4f, eye: vec4f };
 @group(0) @binding(0) var<uniform> g: G;
 fn sat(x: f32) -> f32 { return clamp(x, 0., 1.); }
@@ -113,13 +98,18 @@ fn ss(a: f32, b: f32, x: f32) -> f32 { let t = clamp((x - a) / (b - a), 0., 1.);
   c += vec3f(.25, .6, .7) * pow(1. - max(dot(n, V), 0.), 3.) * .25 + vec3f(1.) * pow(max(dot(n, normalize(L + V)), 0.), 40.) * .2;
   return vec4f(pow(c, vec3f(.4545)), 1.);
 }` });
-    const pipe = device.createRenderPipeline({ layout: 'auto',
-      vertex: { module, entryPoint: 'vs', buffers: [{ arrayStride: 16, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'snorm8x4' }] },
-        { arrayStride: 32, stepMode: 'instance', attributes: [{ shaderLocation: 2, offset: 0, format: 'float32x4' }, { shaderLocation: 3, offset: 16, format: 'float32x4' }] }] },
-      fragment: { module, entryPoint: 'fs', targets: [{ format: fmt }] }, primitive: { cullMode: 'none' }, depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' }, multisample: { count: 4 } });
-    const ub = device.createBuffer({ size: 80, usage: BU.UNIFORM | BU.COPY_DST }), ib = device.createBuffer({ size: 32, usage: BU.VERTEX | BU.COPY_DST });
-    pickGpu = { fmt, ctx, pipe, ub, ib, bind: device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ub } }] }), w: 0, h: 0, msaa: null, depth: null };
-  }
+  const pipe = await device.createRenderPipelineAsync({ layout: 'auto',
+    vertex: { module, entryPoint: 'vs', buffers: [{ arrayStride: 16, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'snorm8x4' }] },
+      { arrayStride: 32, stepMode: 'instance', attributes: [{ shaderLocation: 2, offset: 0, format: 'float32x4' }, { shaderLocation: 3, offset: 16, format: 'float32x4' }] }] },
+    fragment: { module, entryPoint: 'fs', targets: [{ format: fmt }] }, primitive: { cullMode: 'none' }, depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' }, multisample: { count: 4 } });
+  const ub = device.createBuffer({ size: 80, usage: BU.UNIFORM | BU.COPY_DST }), ib = device.createBuffer({ size: 32, usage: BU.VERTEX | BU.COPY_DST });
+  pickGpu = { fmt, ctx, pipe, ub, ib, bind: device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ub } }] }), w: 0, h: 0, msaa: null, depth: null };
+}
+// draws the chosen species' model (called every frame while the panel is open)
+function pickDraw(now) {
+  if (!pickOpen || OFF || !pickGpu) return;
+  const cv = $('cv'), w = cv.clientWidth, h = cv.clientHeight, d = min(devicePixelRatio || 1, 2), W = max(1, round(w * d)), H = max(1, round(h * d));
+  if (!w) return;
   const P = pickGpu;
   if (P.w !== W || P.h !== H) {
     P.w = W; P.h = H; cv.width = W; cv.height = H;

@@ -10,13 +10,9 @@
 <meta property=og:title content="Abyssal Infinite">
 <meta property=og:description content="An endless multiplayer sea in your browser: play as one of ten creatures, from a crab to a whale.">
 <meta property=og:url content=https://abyssal-infinite.wasd.fly/>
-<meta property=og:image content=https://wasd.fly/img/abyssal-infinite/og.jpg>
-<meta property=og:image:width content=1200>
-<meta property=og:image:height content=630>
-<meta name=twitter:card content=summary_large_image>
 <style>
 /* The class on <body> is the state of the page:
-   l = loading, m = menu, g = in the scene (g p while the mouse is captured), l e = failed to start */
+   l = loading, m = menu, g = in the scene (g p while the mouse is captured, g w while it is asked for), l e = failed to start */
 html { background: #03131c; }
 body {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%; margin: 0; overflow: hidden;
@@ -37,48 +33,41 @@ body {
 body:not(.g) #c { filter: blur(1vmax) brightness(.5); transform: scale(1.06); }
 .l #c { opacity: 0; }
 
-/* menu: the loading bar and the buttons share one grid cell, so nothing jumps when they swap */
+/* The menu is laid out in rem, and fitMenu (fit.js) fits the page's rem to the screen. On the loading screen the
+   title and the loading bar (or a first visit's question) stand alone in the middle. In the menu, two columns: the
+   title, the dive button, the creature, the name and the links on the left; the tabs and what they open on the right. */
 #m {
-  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: min(2.2em, 6vmin);
-  padding: 1em 1em 4.5em; text-align: center; background: radial-gradient(#03131c00 30%, #03131ccc);
-  transition: opacity .5s, visibility .5s;
+  position: absolute; inset: 0; display: grid; gap: 1rem 2.4rem; padding: 2rem max(2.8rem, 50% - 44.2rem);
+  grid-template: "t xr" 4.4rem "d a" 5.2rem "cb a" 4.8rem "nm a" 4.4rem ". a" minmax(0, 1fr) "f a" 4.4rem / clamp(22rem, 32%, 27.2rem) minmax(0, 1fr);
+  background: radial-gradient(#03131c00 30%, #03131ccc); transition: opacity .5s, visibility .5s;
 }
-.g #m, .m #l, .l #g { opacity: 0; visibility: hidden; }
+.l #m { grid-template: none; place-content: center; justify-items: center; gap: 3rem; padding: 2rem; text-align: center; }
+.l #m > :not(h1, #l), body:not(.l) #l { display: none; }
+.g #m { opacity: 0; visibility: hidden; }
+/* (the title's size in the menu: as wide as the column under it, set by fitMenu) */
 h1 {
-  margin: 0; font: 900 4.4em/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
+  grid-area: t; align-self: center; justify-self: start; margin: 0; white-space: nowrap;
+  font: 900 2.8rem/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
   color: #0000; background: linear-gradient(#fff 25%, #7ff3ff 60%, #14a9c4);
   -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 .06em .2em #000c);
 }
+.l h1 { grid-area: auto; justify-self: center; font-size: 4rem; }
 p { margin: 0; }
-#a { display: grid; width: 27em; max-width: 100%; }
-#a > * { grid-area: 1/1; transition: opacity .8s, visibility .8s; }
-#s, #w, #k, #h, #x, #xw, #xs, #y, #yw, #ys { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
-#w { margin-top: 1.2em; color: #7ff3ff; text-wrap: balance; }
+#l { width: 42rem; max-width: 100%; }
+#s, #w, #z p { font-size: 1.2rem; letter-spacing: .12em; text-transform: uppercase; }
+#w { margin-top: 1.2rem; color: #7ff3ff; text-wrap: balance; }
 
-/* a first visit's question, in place of the loading bar: which detail level to build (quality.js) */
-#z, #l.z > :not(#zi) { display: none; } #l.z #z { display: block; }
-/* (the menu behind it is not laid out yet: its plates have their full height until the script fills them, and
-   that would push the title off the top of the screen) */
-#l.z ~ #g { display: none; }
-#z p { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; } #z p + div + p { color: #7ff3ff; }
-#z div { display: flex; gap: .6em; margin: 1.1em 0; }
-#z button { flex: 1; min-width: 0; padding: .9em 0; }
-#z button:not(.on) { background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #e8fbff; }
-#z .on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003, 0 0 2em #19c3d6b3; }
-/* a picture of the sea under the question and under the loading bar: the one thing the page takes from outside (a
-   screenshot in the game's repository). It is fetched beside everything else and fades in once it is there; without
-   a connection its place stays empty */
-#zi { display: block; max-width: 100%; aspect-ratio: 16/9; height: min(17em, 28vh); height: clamp(0px, 100cqh - 18.5em, 17em); margin: 1.6em auto 0; object-fit: cover; border-radius: .7em; box-shadow: 0 0 0 2px #7ff3ff59, 0 .6em 2em #000a; opacity: 0; transition: opacity .6s; }
-.e #zi { display: none; }
-/* its height is what the title, the question and the links at the bottom leave of the page's height (the page's, not
-   the window's: a phone held upright has the page on its side) and its width follows, so on a low page it is a small
-   picture with the same room around it; under some 50 px of height there is none */
-#m { container-type: size; }
-@container (max-height: 280px) { #zi { display: none; } }
+/* a first visit's question (quality.js) and the loading bar share one cell, so neither moves anything when one gives
+   way to the other */
+#lt { display: grid; align-items: center; } #lt > * { grid-area: 1/1; }
+#z, #lb { transition: opacity .6s, visibility .6s; }
+#z, #l.z #lb { visibility: hidden; opacity: 0; } #l.z #z { visibility: visible; opacity: 1; }
+#z p + div + p { color: #7ff3ff; }
+#z div { margin: 1.4rem 0; }
 
 /* loading bar */
 #p {
-  height: .5em; margin: .4em 0 1em; overflow: hidden; border-radius: 1em; background: #03131c;
+  height: .8rem; margin: .4rem 0 1rem; overflow: hidden; border-radius: 1em; background: #03131c;
   box-shadow: 0 0 0 2px #7ff3ff80, 0 0 1.5em #14a9c4;
 }
 #b {
@@ -86,7 +75,7 @@ p { margin: 0; }
   transform: scaleX(0); transform-origin: 0; will-change: transform;
 }
 .e #p { visibility: hidden; }
-.e #s { font-size: 1.1em; letter-spacing: 0; text-transform: none; }
+.e #s { font-size: 1.3rem; letter-spacing: 0; text-transform: none; }
 
 /* buttons */
 button, a {
@@ -101,45 +90,60 @@ button:active, a:active { transform: translateY(.1em); filter: brightness(.9); }
    takes the focus by itself whenever the menu opens, so that Enter dives, and must not be ringed for that. */
 :focus, :focus-visible { outline: none; }
 .k :focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-#g { display: grid; gap: min(1.2em, 3.5vmin); }
-#d, #dh {
-  padding: .9em; background: linear-gradient(#9ff6ff, #19c3d6); font-size: 1.3em; line-height: 1.2;
-  box-shadow: inset 0 -.2em #0003, 0 0 2em #19c3d6b3;
-}
-/* the dive button, and beside it on a phone the way home: a square with a house on it (sized by its padding and
-   icon to the height of the dive button: Safari does not derive a flex item's width from aspect-ratio) */
-#dr { display: flex; gap: .5em; } #d { flex: 1; } #dh { flex: none; padding: .75em; } #dh[hidden] { display: none; }
-#dh svg { display: block; }
-
-/* GitHub and More games (the repository, and the site the game belongs to): always at the bottom of the menu */
-#f { position: absolute; left: 0; right: 0; bottom: 1.5em; display: flex; justify-content: center; gap: 1em; font-size: .8em; }
 svg { width: 1.5em; height: 1.5em; fill: currentColor; }
+/* what is lit: the dive button, the Home button before it once a dive has begun (a phone, which has no key 1, has it
+   from the start), the open tab, the chosen option, the chosen species */
+#d, #dh, #m .on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.3rem #0003; color: #03222d; }
+#dr { grid-area: d; display: flex; gap: .8rem; }
+#d, #dh { padding: 0; font-size: 1.7rem; box-shadow: inset 0 -.3rem #0003, 0 0 2.4rem #19c3d6b3; }
+#d { flex: 1; } #dh { flex: none; width: 5.2rem; } #dh[hidden] { display: none; } #dh svg { width: 2rem; height: 2rem; }
+/* dark plates: the tabs, the creature button, the name */
+#xr button, #cb, #nm { border-radius: .8rem; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; }
+#xr { grid-area: xr; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; }
+#xr button { position: relative; padding: 0 .4rem; color: #7ff3ff; font-size: 1.15rem; letter-spacing: .1em; }
+/* (a dot on Graphics and World while they hold choices not applied yet) */
+#xr .ch::after { content: ''; position: absolute; top: .6rem; right: .6rem; width: .7rem; height: .7rem; border-radius: 50%; background: #ffd27a; }
 
-/* dark plates under the dive button: detail level, list of controls, touch hint */
-#k, #h { padding: 1em 1.6em; border-radius: .7em; background: #03131cb3; }
-#y, #yw, #ys { display: grid; gap: .3em; } #y[hidden], #yw[hidden], #ys[hidden] { display: none; }
-#xr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .6em; }
-#x, #xw, #xs { padding: .7em .2em; gap: .4em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
+/* GitHub and More games (the repository, and the site the game belongs to): at the bottom of the left column */
+#f { grid-area: f; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .6rem; }
+#f > * { display: grid; justify-items: center; align-content: center; gap: .2rem; padding: 0 .2rem; border-radius: .8rem; font-size: .9rem; letter-spacing: .06em; white-space: nowrap; }
+#f svg { width: 1.4rem; height: 1.4rem; }
 
-/* detail level: three buttons in a row, the current one lit */
-#y p, #yw p, #ys p, #tc { display: flex; align-items: center; gap: .4em; padding: .4em; border-radius: .7em; background: #03131cb3; }
-#y span, #yw span, #ys span, #tc span { flex: 1.15; padding-left: .7em; color: #7ff3ff; text-align: left; white-space: nowrap; }
-#y .w { white-space: normal; line-height: 1.15; }
-#y p button, #yw p button, #ys p button, #tc button { flex: 1; min-width: 0; padding: .5em 0; background: none; box-shadow: none; color: #e8fbff; letter-spacing: .08em; }
-@media (hover: hover) { #y p button:hover, #yw p button:hover, #ys p button:hover, #tc button:hover { background: #7ff3ff33; } }
-#y p button.on, #yw p button.on, #ys p button.on, #tc button.on { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; pointer-events: none; }
+/* what the tabs open: an area that scrolls under a rail of its own (fit.js), its edges fading where there is more */
+#a { grid-area: a; position: relative; min-height: 0; border-radius: 1.2rem; background: #03131c66; text-align: left; container-type: inline-size; }
+#sc { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 1rem; -webkit-mask-image: var(--f); mask-image: var(--f); }
+#sc::-webkit-scrollbar { display: none; }
+#a.t #sc { --f: linear-gradient(#0000, #000 2.8rem); } #a.b #sc { --f: linear-gradient(#000 calc(100% - 2.8rem), #0000); }
+#a.t.b #sc { --f: linear-gradient(#0000, #000 2.8rem, #000 calc(100% - 2.8rem), #0000); }
+#sc > * { display: grid; gap: .8rem; align-content: start; } #sc > [hidden] { display: none; }
+/* (the rail in the area's right margin, beside what scrolls) */
+#rl { position: absolute; top: 1rem; bottom: 1rem; right: .1rem; width: .8rem; border-radius: 9em; background: #7ff3ff1a; touch-action: none; cursor: pointer; }
+#rl[hidden] { display: none; }
+#rt { position: absolute; left: .15rem; right: .15rem; border-radius: 9em; background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: 0 0 1rem #19c3d6aa; cursor: grab; }
+
+/* a setting: its name, then one switch of its options across the row (a plate, the chosen option lit in it), every
+   option a 4.4rem high segment of it; the first visit's question is such a switch too */
+#y p, #yw p, #ys p, #tc { display: grid; grid-template-columns: 11.8rem minmax(0, 1fr); align-items: center; gap: .6rem .8rem; }
+#y span, #yw span, #ys span, #tc span { color: #7ff3ff; font-size: 1.1rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15; }
+#z div, #a span + i { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .4rem; padding: .4rem; border-radius: 1.2rem; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff2e; font-style: normal; }
+#z button, #a i button { height: 4.4rem; min-width: 0; padding: 0 .2rem; background: none; box-shadow: none; color: #e8fbff; font-size: 1.1rem; letter-spacing: .06em; }
+@media (hover: hover) { #z button:not(.on):hover, #a i button:not(.on):hover { background: #7ff3ff26; } }
+#a i .on { pointer-events: none; }
+@container (max-width: 42rem) { #y p, #yw p, #ys p, #tc { grid-template-columns: minmax(0, 1fr); } }
 
 /* list of controls: two groups, key caps right-aligned against their labels */
-#k { display: flex; justify-content: center; gap: 2em; text-align: left; }
-#k p { display: grid; grid-template-columns: auto auto; align-content: start; align-items: center; gap: .55em .9em; }
-#k p + p { padding-left: 2em; border-left: 2px solid #7ff3ff40; }
-#k i { display: flex; justify-self: end; align-items: center; gap: .25em; font-style: normal; }
+#k { display: grid; grid-template-columns: repeat(2, minmax(0, auto)); justify-content: center; gap: 2rem; padding: .8rem .4rem; font-size: 1.1rem; letter-spacing: .1em; text-transform: uppercase; }
+#k p { display: grid; grid-template-columns: auto 1fr; align-content: start; align-items: center; gap: .9rem 1.2rem; }
+#k p + p { padding-left: 2rem; border-left: 2px solid #7ff3ff40; }
+#k i { display: flex; justify-self: end; align-items: center; gap: .4rem; font-style: normal; }
 #k b {
-  min-width: 1.1em; padding: .2em .5em; border-radius: .35em; background: #e8fbff;
+  min-width: 2.4rem; padding: .3rem .7rem; border-radius: .6rem; background: #e8fbff;
   box-shadow: inset 0 -.15em #0004; color: #03222d; text-align: center;
 }
+/* a touch screen's instead: the Scheme switch, and how that scheme works, a row a gesture */
 #h, #tc { display: none; }
-#tc { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; } #tc button { padding: .9em 0; }
+#h p { display: grid; grid-template-columns: 4rem 1fr; align-items: center; gap: .8rem; min-height: 4.4rem; padding: 0 1rem; border-radius: .8rem; background: #03131cb3; font-size: 1.1rem; letter-spacing: .1em; text-transform: uppercase; }
+#h svg { width: 2.4rem; height: 2.4rem; justify-self: center; color: #7ff3ff; }
 /* phones, playing a creature: three round buttons beside the sonar (bite, gurgle, burst), and the joystick's ring
    where the left thumb went down (the Controls row of the menu) */
 #tb { position: fixed; right: calc(clamp(120px, 26vmin, 320px) + 5vmin); bottom: 3vmin; display: none; gap: 2.5vmin; }
@@ -166,47 +170,40 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 #hw { display: block; }
 #hn { display: block; color: #8fe6c3; }
 .g #so, .g #hu { display: block; }
-/* the creature panel: a row of species, the model to turn, what to know about it */
-#a.w { width: 54em; }
-/* the creature button and the player's name share a row (the name only where there is a server: #cr.o without) */
-#cr { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
-#cr.o { grid-template-columns: 1fr; } .o #nm { display: none; }
-.bk { width: 1.1em; height: 1.1em; flex: none; }
-#nm { min-width: 0; padding: .6em .9em; border: 0; border-radius: .5em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #e8fbff; font: inherit; font-size: .8em; letter-spacing: .08em; text-align: center; outline: none; }
+/* the creature button and the player's name (the name only where there is a server) */
+#nm { grid-area: nm; min-width: 0; padding: 0 1.2rem; border: 0; color: #e8fbff; font: inherit; font-size: 1.3rem; letter-spacing: .08em; text-align: center; outline: none; }
 #nm:focus { box-shadow: inset 0 0 0 2px #7ff3ff; } #nm::placeholder { color: #7ff3ff80; text-transform: uppercase; letter-spacing: .12em; }
-/* in the main menu: the chosen creature's picture, "Choose creature" over its name, an arrow that says there is more;
-   in the creature panel (#a.w) the same button leads back: arrow, "Main menu", the picture, the name */
-#cb { justify-content: flex-start; padding: .55em .8em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
+/* the chosen creature's picture, "Choose creature" over its name, an arrow that says there is more; while the creature
+   panel is open the button is ringed as it glows on a first visit, but steadily */
+#cb { grid-area: cb; justify-content: flex-start; padding: .55em .8em; color: #7ff3ff; font-size: 1.25rem; letter-spacing: .12em; }
 #cb span { display: grid; gap: .1em; text-align: left; line-height: 1.15; }
 #cl { font-style: normal; font-size: .78em; }
 #cb b { color: #e8fbff; }
 #ct { width: 3.2em; aspect-ratio: 64 / 30; flex: none; }
+.bk { width: 1.1em; height: 1.1em; flex: none; }
 #cch { margin-left: auto; }
-#cbk { display: none; }
-.w #cb { justify-content: center; padding: .7em; }
-.w #cb span { display: contents; } .w #cl { font-size: 1em; order: 1; } .w #ct { order: 2; } .w #cn { order: 3; }
-.w #cbk { display: block; } .w #cch { display: none; }
+#cb.w { box-shadow: inset 0 0 0 2px #7ff3ff, 0 0 1.6em #19c3d6; }
 /* until a creature has ever been chosen the button glows in and out */
 #cb.n { animation: cb 2.4s ease-in-out infinite; }
 @keyframes cb { 50% { box-shadow: inset 0 0 0 2px #7ff3ff, 0 0 1.6em #19c3d6; } }
 /* a question over the menu (unsaved graphics settings), in the menu's own plates and buttons */
-#u { position: fixed; inset: 0; z-index: 1; display: grid; place-content: center; padding: 1em; background: #03131ce6; }
+#u { position: fixed; inset: 0; z-index: 1; display: grid; place-content: center; padding: 1rem; background: #03131ce6; text-align: center; }
 #u[hidden] { display: none; }
-#u div { display: grid; gap: .6em; width: 24em; max-width: 100%; padding: 1.4em 1.6em; border-radius: .7em; background: #03222d; box-shadow: inset 0 0 0 2px #7ff3ff59, 0 .6em 2.5em #000c; }
-#u p { font-size: .8em; letter-spacing: .12em; text-transform: uppercase; }
-#u p + p { margin-bottom: .6em; color: #7ff3ff; text-transform: none; letter-spacing: .02em; font-weight: 600; }
-#u button { padding: .7em; font-size: .8em; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
-#u #ua { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.2em #0003; color: #03222d; }
-#cp { display: grid; gap: .5em; font-size: .8em; } #cp[hidden] { display: none; }
-#cs { display: grid; grid-template-columns: repeat(11, 1fr); gap: .3em; }
-#cs button { padding: .35em .1em .4em; min-width: 0; background: #03131cb3; box-shadow: none; color: #e8fbff; font-size: .72em; letter-spacing: .02em; display: grid; justify-items: center; gap: .15em; border-radius: .5em; text-transform: none; }
-@media (hover: hover) { #cs button:hover { background: #7ff3ff33; } }
-#cs .on { background: linear-gradient(#9ff6ff, #19c3d6); color: #03131c; }
-#cs canvas { width: 100%; max-width: 64px; aspect-ratio: 64 / 30; }
+#u div { display: grid; gap: .8rem; width: 34rem; max-width: 100%; padding: 1.8rem 2rem; border-radius: 1.2rem; background: #03222d; box-shadow: inset 0 0 0 2px #7ff3ff59, 0 1rem 4rem #000c; }
+#u p { font-size: 1.2rem; letter-spacing: .12em; text-transform: uppercase; }
+#u p + p { margin-bottom: .6rem; color: #7ff3ff; text-transform: none; letter-spacing: .02em; font-weight: 600; font-size: 1.3rem; }
+#u button { height: 4.4rem; padding: 0; font-size: 1.2rem; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff59; color: #7ff3ff; }
+#u #ua { background: linear-gradient(#9ff6ff, #19c3d6); box-shadow: inset 0 -.3rem #0003; color: #03222d; }
+/* the creature panel: the species, the model to turn, what to know about it */
+#cs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem; }
+#cs button { display: grid; justify-items: center; align-content: center; gap: .2rem; height: 5.2rem; min-width: 0; padding: 0 .2rem; border-radius: .8rem; background: #03131cb3; box-shadow: inset 0 0 0 2px #7ff3ff2e; color: #e8fbff; font-size: 1.05rem; letter-spacing: .02em; text-transform: none; }
+@media (hover: hover) { #cs button:not(.on):hover { background: #7ff3ff33; } }
+#cs canvas { width: 3.8rem; aspect-ratio: 64 / 30; }
 #cs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-#cw { display: grid; grid-template-columns: 1.15fr 1fr; gap: .6em; }
-#cv { width: 100%; height: 100%; min-height: 13em; border-radius: .7em; background: radial-gradient(circle at 50% 30%, #0e5a70, #052635 75%); touch-action: none; cursor: grab; }
-#ci { padding: .9em 1.1em; border-radius: .7em; background: #03131cb3; text-align: left; text-transform: none; letter-spacing: .01em; line-height: 1.35; }
+#cw { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: .8rem; align-items: start; }
+/* (the model's picture is drawn at the canvas's size, which follows its width only) */
+#cv { width: 100%; aspect-ratio: 4 / 3; border-radius: 1.2rem; background: radial-gradient(circle at 50% 30%, #0e5a70, #052635 75%); touch-action: none; cursor: grab; }
+#ci { padding: 1.2rem 1.4rem; border-radius: 1.2rem; background: #03131cb3; font-size: 1.2rem; text-transform: none; letter-spacing: .01em; line-height: 1.35; }
 #ci h3 { margin: 0; font-size: 1.5em; color: #e8fbff; }
 #ci p { margin: .45em 0 0; }
 #ci .k { margin-top: 0; color: #7ff3ff; text-transform: uppercase; letter-spacing: .1em; font-size: .8em; }
@@ -218,16 +215,13 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 #ci .c i { font-style: normal; font-size: .85em; padding: .1em .6em; border-radius: 9em; border: 1px solid #134a5e; color: #8fb9c4; }
 #ci .c .e { color: #57e3d8; border-color: #57e3d866; } #ci .c .d { color: #ff7a66; border-color: #ff7a6666; } #ci .c .f { color: #d9c98a; border-color: #d9c98a66; }
 #ci .n { color: #c4dde4; font-size: .92em; }
-@media (max-width: 700px) { #cw { grid-template-columns: 1fr; } #cs { grid-template-columns: repeat(6, 1fr); } }
-@media (pointer: coarse), (max-height: 30em) {
-  #k { display: none; }
-}
+@container (max-width: 42rem) { #cs { grid-template-columns: repeat(4, minmax(0, 1fr)); } #cw { grid-template-columns: minmax(0, 1fr); } }
 @media (pointer: coarse) {
-  #h { display: block; }
-  #tc { display: flex; }
-  /* the question over the menu is not shrunk with it, and what is pressed in the scene is a fingertip wide */
-  #u { font-size: clamp(13px, .7vw + .9vh, 36px); }
-  #u button, #o { min-width: 44px; min-height: 44px; }
+  #m { padding-inline: max(4.4rem, 50% - 42.6rem); }
+  #k { display: none; }
+  #h, #tc { display: grid; } #h { gap: .6rem; }
+  /* what is pressed in the scene is a fingertip wide */
+  #o { min-width: 44px; min-height: 44px; }
   .g #tb.c, .g #tz.c { display: flex; }
 }
 
@@ -238,7 +232,7 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 }
 #o svg, #tz svg { width: 1em; height: 1em; }
 .g #o { display: flex; }
-.p #o { display: none; }
+.p #o, .w #o { display: none; }
 #i {
   position: absolute; top: 1em; left: 1.2em; margin: 0; font: .8em/1.6 ui-monospace, Consolas, monospace;
   white-space: pre-wrap; text-shadow: 0 1px 4px #000; pointer-events: none;
@@ -251,46 +245,17 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
 <div id=hu><span id=hm></span><span id=hn></span><span id=hw></span><i id=hb><i id=hf></i></i><i id=st><i id=sb></i></i></div>
 <div id=m>
   <h1>Abyssal Infinite</h1>
-  <div id=a>
-    <div id=l><div id=p><i id=b></i></div><p id=s>Diving…</p><p id=w hidden>Use Google Chrome for optimal experience</p><div id=z><p>Choose the graphics</p><div><button>Low</button><button>Medium</button><button>High</button></div><p>You can change it later in the menu</p></div><img id=zi alt="" decoding=async src=https://raw.githubusercontent.com/alexz006/abyssal-infinite/main/screenshots/home-small.webp onload=this.style.opacity=1></div>
-    <!-- a first visit: the question is on the screen from the first paint, not the loading bar until the big script below has been read (quality.js then asks it) -->
-    <script>try{localStorage.abyssal||!navigator.gpu||/offscreen/.test(location.hash)||(document.getElementById('l').className='z')}catch(e){}</script>
-    <div id=g>
-      <div id=dr><button id=d>Dive in</button><button id=dh hidden aria-label=Home><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8.5h5.2v-6h3.6v6H19V12h3z"/></svg></button></div>
-      <div id=cr>
-        <button id=cb><svg id=cbk class=bk viewBox="0 0 24 24"><path d="M10.5 4.5 3 12l7.5 7.5 1.8-1.8-4.4-4.4H21v-2.6H7.9l4.4-4.4z"/></svg><canvas id=ct></canvas><span><i id=cl></i><b id=cn></b></span><svg id=cch class=bk viewBox="0 0 24 24"><path d="m9 5 7 7-7 7-1.8-1.8 5.2-5.2-5.2-5.2z"/></svg></button>
-        <input id=nm maxlength=16 placeholder="Your name" title="Your name for other players" autocomplete=off spellcheck=false>
-      </div>
-      <div id=cp hidden>
-        <div id=cs></div>
-        <div id=cw><canvas id=cv></canvas><div id=ci></div></div>
-      </div>
-      <div id=xr><button id=x>Graphics</button><button id=xw>World</button><button id=xs>Sound</button></div>
-      <div id=ys hidden>
-        <p><span>Volume</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
-        <p><span>Water</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
-        <p><span>Music</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
-        <p><span>Sea life</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
-        <p><span>Gurgling</span><button>Off</button><button>Low</button><button>Medium</button><button>High</button></p>
-      </div>
-      <div id=yw hidden>
-        <p id=v><span>Water</span><button>Lagoon</button><button>Clear</button><button>Crystal</button></p>
-        <p><span>Creatures</span><button>Few</button><button>Medium</button><button>Many</button></p>
-        <p><span>Time</span><button>Morning</button><button>Noon</button><button>Evening</button><button>Night</button></p>
-        <p><span>Colours</span><button>Vivid</button><button>Natural</button></p>
-        <p class=h><span>HUD</span><button>Off</button><button>On</button></p>
-      </div>
-      <div id=y hidden>
-        <p id=q><span>Detail</span><button>Low</button><button>Medium</button><button>High</button></p>
-        <p><span>Distance</span><button>Near</button><button>Medium</button><button>Far</button></p>
-        <p><span>Resolution</span><button>Auto</button><button>50%</button><button>75%</button><button>100%</button></p>
-        <p><span>Plants</span><button>Sparse</button><button>Medium</button><button>Dense</button></p>
-        <p><span>Shadows</span><button>Low</button><button>Medium</button><button>High</button></p>
-        <p><span>Smoothing</span><button>Off</button><button>4x</button></p>
-        <p><span>Light rays</span><button>Off</button><button>Low</button><button>High</button></p>
-        <p><span class=w>Animal shadows</span><button>Off</button><button>Few</button><button>All</button></p>
-        <p><span>Surface</span><button>Flat</button><button>Waves</button></p>
-      </div>
+  <div id=l><div id=lt><div id=lb><div id=p><i id=b></i></div><p id=s>Diving…</p><p id=w hidden>Use Google Chrome for optimal experience</p></div><div id=z><p>Choose the graphics</p><div><button>Low</button><button>Medium</button><button>High</button></div><p>You can change it later in the menu</p></div></div></div>
+  <div id=dr><button id=dh hidden aria-label=Home><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8.5h5.2v-6h3.6v6H19V12h3z"/></svg></button><button id=d>Dive in</button></div>
+  <div id=xr><button id=xc class=on>Controls</button><button id=x>Graphics</button><button id=xw>World</button><button id=xs>Sound</button></div>
+  <button id=cb><canvas id=ct></canvas><span><i id=cl>Choose creature</i><b id=cn>Free camera</b></span><svg id=cch class=bk viewBox="0 0 24 24"><path d="m9 5 7 7-7 7-1.8-1.8 5.2-5.2-5.2-5.2z"/></svg></button>
+  <input id=nm maxlength=16 placeholder="Your name" title="Your name for other players" autocomplete=off spellcheck=false>
+  <p id=f>
+    <a href=https://github.com/alexz006/abyssal-infinite target=_blank><svg viewBox="0 0 16 16"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>GitHub</a>
+    <a href=https://wasd.fly target=_blank><svg viewBox="0 0 24 24"><path d="M9.5 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 12h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zm7.5 0h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zm7.5 0h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z"/></svg>More games</a>
+  </p>
+  <div id=a><div id=sc>
+    <div id=kp>
       <div id=k>
         <p>
           <i><b>W</b><b>A</b><b>S</b><b>D</b></i>Swim
@@ -299,22 +264,51 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
           <i><b>Shift</b>×2</i>Burst of speed
           <i><b>LMB</b></i>Bite, strike, feed
           <i><b>RMB</b></i>Gurgle
-          <i><b>1</b>–<b>6</b></i>Home viewpoints
-          <i><b>7</b>–<b>0</b></i>Into the deep
           <i><b>Wheel</b></i>Camera nearer, further
-          <i><b>Z</b></i>Sonar range
         </p>
         <p>
           <i><b>Esc</b></i>Menu
           <i><b>M</b></i>Mute
           <i><b>H</b></i>Stats
           <i><b>F11</b></i>Full screen
+          <i><b>1</b>–<b>6</b></i>Home viewpoints
+          <i><b>7</b>–<b>0</b></i>Into the deep
+          <i><b>Z</b></i>Sonar range
         </p>
       </div>
-      <p id=tc><span>Controls</span><button>One finger</button><button>Joystick</button></p>
-      <p id=h></p>
+      <p id=tc><span>Scheme</span><i><button>One finger</button><button>Joystick</button></i></p>
+      <div id=h></div>
     </div>
-  </div>
+    <div id=y hidden>
+      <p id=q><span>Detail</span><i><button>Low</button><button>Medium</button><button>High</button></i></p>
+      <p><span>Distance</span><i><button>Near</button><button>Medium</button><button>Far</button></i></p>
+      <p><span>Resolution</span><i><button>Auto</button><button>50%</button><button>75%</button><button>100%</button></i></p>
+      <p><span>Plants</span><i><button>Sparse</button><button>Medium</button><button>Dense</button></i></p>
+      <p><span>Shadows</span><i><button>Low</button><button>Medium</button><button>High</button></i></p>
+      <p><span>Smoothing</span><i><button>Off</button><button>4x</button></i></p>
+      <p><span>Light rays</span><i><button>Off</button><button>Low</button><button>High</button></i></p>
+      <p><span>Animal shadows</span><i><button>Off</button><button>Few</button><button>All</button></i></p>
+      <p><span>Surface</span><i><button>Flat</button><button>Waves</button></i></p>
+    </div>
+    <div id=yw hidden>
+      <p id=v><span>Water</span><i><button>Lagoon</button><button>Clear</button><button>Crystal</button></i></p>
+      <p><span>Creatures</span><i><button>Few</button><button>Medium</button><button>Many</button></i></p>
+      <p><span>Time</span><i><button>Morning</button><button>Noon</button><button>Evening</button><button>Night</button></i></p>
+      <p><span>Colours</span><i><button>Vivid</button><button>Natural</button></i></p>
+      <p class=h><span>HUD</span><i><button>Off</button><button>On</button></i></p>
+    </div>
+    <div id=ys hidden>
+      <p><span>Volume</span><i><button>Off</button><button>Low</button><button>Medium</button><button>High</button></i></p>
+      <p><span>Water</span><i><button>Off</button><button>Low</button><button>Medium</button><button>High</button></i></p>
+      <p><span>Music</span><i><button>Off</button><button>Low</button><button>Medium</button><button>High</button></i></p>
+      <p><span>Sea life</span><i><button>Off</button><button>Low</button><button>Medium</button><button>High</button></i></p>
+      <p><span>Gurgling</span><i><button>Off</button><button>Low</button><button>Medium</button><button>High</button></i></p>
+    </div>
+    <div id=cp hidden>
+      <div id=cs></div>
+      <div id=cw><canvas id=cv></canvas><div id=ci></div></div>
+    </div>
+  </div><i id=rl><i id=rt></i></i></div>
   <div id=u hidden><div>
     <p>Settings were changed</p>
     <p>They take effect after the page reloads.</p>
@@ -322,11 +316,10 @@ svg { width: 1.5em; height: 1.5em; fill: currentColor; }
     <button id=ud>Discard changes</button>
     <button id=uk>Keep editing</button>
   </div></div>
-  <p id=f>
-    <a href=https://github.com/alexz006/abyssal-infinite target=_blank><svg viewBox="0 0 16 16"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>GitHub</a>
-    <a href=https://wasd.fly target=_blank><svg viewBox="0 0 24 24"><path d="M9.5 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 12h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zm7.5 0h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zm7.5 0h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z"/></svg>More games</a>
-  </p>
 </div>
+<script>
+/*EARLY*/
+</script>
 <button id=o aria-label=Menu><svg viewBox="0 0 24 24"><path d="M3 5h18v2.6H3zm0 5.7h18v2.6H3zm0 5.7h18V19H3z"/></svg></button>
 <div id=tb><button id=t2></button><button id=t1></button><button id=t3>Burst</button></div>
 <div id=tz><button id=tm aria-label="Camera further"><svg viewBox="0 0 24 24"><path d="M4 10.7h16v2.6H4z"/></svg></button><button id=tp aria-label="Camera nearer"><svg viewBox="0 0 24 24"><path d="M10.7 4h2.6v6.7H20v2.6h-6.7V20h-2.6v-6.7H4v-2.6h6.7z"/></svg></button></div>

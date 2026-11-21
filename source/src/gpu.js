@@ -3,20 +3,7 @@
 // ============================================================================
 const $ = (id) => document.getElementById(id);
 const canvas = $('c'), info = $('i'), body = document.body;
-// The menu is sized in em: its font is shrunk until all of it is on the screen - from the first moment, while the
-// world is still being built behind the loading bar. Measured by where the title and the buttons end up: the menu is
-// centred, so what does not fit sticks out at the top as much as at the bottom, and at the bottom it must also stay
-// clear of the two links when they are shown. On a phone an open panel takes the room of the title, the controls
-// row and the touch hint, so its buttons are shrunk less.
-function fitMenu() {
-  const m = $('m'), h1 = m.firstElementChild, a = $('a'), ft = $('f'); let f = 1; m.style.fontSize = '';
-  if (mob) h1.style.display = $('tc').style.display = $('h').style.display = $('y').hidden && $('yw').hidden && $('ys').hidden && $('cp').hidden ? '' : 'none';
-  const fits = () => { const pad = m.clientHeight * 0.015, low = ft.style.display === 'none' ? m.clientHeight : ft.offsetTop; return (h1.offsetHeight ? h1 : a).offsetTop >= pad && a.offsetTop + a.offsetHeight <= low - pad && h1.offsetWidth <= m.clientWidth && a.scrollWidth <= m.clientWidth; };
-  while (!fits() && f > 0.2) { f -= 0.03; m.style.fontSize = f + 'em'; }
-}
-fitMenu(); addEventListener('resize', fitMenu);
-// the menu's panels: [panel, the button that opens it, the button's words]
-const PANELS = [['y', 'x', 'Graphics'], ['yw', 'xw', 'World'], ['ys', 'xs', 'Sound']];
+// fitMenu, the menu's size, is in fit.js: the early script, run before this one
 // a phone held upright gets the page turned on its side (see template.html)
 const rot = matchMedia('(orientation:portrait) and (pointer:coarse)');
 // loading bar: each stage glides it to `to` (the share done) over ~`ms` on the compositor, so it moves while this
@@ -30,10 +17,11 @@ const say = (m, to, ms) => {
   return new Promise((r) => { a.ready.then(() => setTimeout(r)); setTimeout(r, document.hidden ? 0 : 1e3); });
 };
 const fail = (m) => { throw new Error(m, { cause: 1 }); }; // cause marks a message that is shown as it is
+// the advice to use Chrome: only where there is no WebGPU and the browser is not Chromium-based (only those have userAgentData)
+$('w').hidden = !!navigator.gpu || !!navigator.userAgentData;
 if (!navigator.gpu) fail('This scene needs WebGPU. Try a current Chrome or Edge.');
 const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
 if (!adapter) fail('No WebGPU adapter found.');
-$('w').hidden = !!navigator.userAgentData; // only Chromium-based browsers have it
 const hasTS = adapter.features.has('timestamp-query');
 const device = await adapter.requestDevice({ requiredFeatures: hasTS ? ['timestamp-query'] : [] });
 // ?debug in the address: what the browser says about its GPU and the first errors, on the page itself (a phone has

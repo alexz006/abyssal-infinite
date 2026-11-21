@@ -278,17 +278,17 @@ phone in silent mode the sound plays in Chrome but not in Safari.
 | Gurgle (playing a creature) | Hold the right mouse button |
 | Camera nearer, further (playing a creature) | Mouse wheel |
 | Jump to a viewpoint | `1` to `6` in the home region, `7` to `0` in the deep |
-| Menu | `Esc` releases the mouse and opens the menu with the list of controls; **Resume** takes you back. The menu also has the creature button, and your name when there is a multiplayer server |
+| Menu | `Esc` releases the mouse and opens the menu: on the left **Resume** (with a Home button before it), the creature button and your name when there is a multiplayer server; on the right the **Controls**, **Graphics**, **World** and **Sound** tabs; what does not fit under them scrolls |
 | Sound on / off | `M` (sound starts when you dive in) |
 | Sonar range | `Z` |
 | Performance stats | `H` |
 
 **On a phone** one finger does the swimming: hold it down to swim forward, slide it to steer, add a second finger to
 go faster. While you play a creature, three round buttons sit beside the sonar: the mouth (**Bite**, or **Strike**
-for the crab), **Gurgle** (held; **Block** for the crab) and **Burst**. The **Controls** row of the menu switches to
+for the crab), **Gurgle** (held; **Block** for the crab) and **Burst**. The **Scheme** row of the menu's Controls tab switches to
 a **Joystick** instead: the left thumb is a stick to swim by - forward, back and sideways, and faster when pushed far
 out - and the right thumb turns the view. The **−** and **+** buttons beside the menu button move the camera further and
-nearer, and a short tap on the sonar changes its range. The menu's dive button has a square Home button beside it (a phone has no key `1`): it puts you at the first viewpoint and resumes. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
+nearer, and a short tap on the sonar changes its range. The menu's dive button has a square Home button before it (a phone has no key `1`; on a computer it appears once a dive has begun): it puts you at the first viewpoint and resumes. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
 `source/src/main.js`. On a first visit a phone is proposed the Low detail level.
 | Detail level, graphics | **Graphics** in the menu (applying them reloads the page) |
 | Water, number of creatures, time of day, colours | **World** in the menu (applying them reloads the page) |
@@ -330,6 +330,7 @@ This writes a new `index.html` next to this README, and a copy for the multiplay
 | [`source/src/audio.js`](source/src/audio.js) | The soundscape |
 | [`source/src/quality.js`](source/src/quality.js) | The detail levels and the graphics, water and sound settings: what a device starts on, and what is remembered between visits |
 | [`source/src/math.js`](source/src/math.js) | Noise, random numbers and mesh-building helpers |
+| [`source/src/fit.js`](source/src/fit.js) | The menu's size on the screen (the page's rem fitted to the screen), and the scroll rail under the tabs (a small script run before the game's own) |
 | [`source/src/dev.js`](source/src/dev.js) | Development tools (fly-through, benchmark, hooks for automated tests), only in `dev.html` |
 | [`source/template.html`](source/template.html) | The page around the scene: loading bar, menu and its panels, links and their styles |
 

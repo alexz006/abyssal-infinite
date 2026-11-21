@@ -391,19 +391,20 @@ const GURBEAT = [3, 16, 14, 11, 9, 6, 11, 13, 4.5, 2.6]; // how fast each specie
 // where the gurgle comes out: the mouth (the crab's: between its claws)
 const gurMouth = (b) => { const c = CRIT[b.s], cp = cos(b.pit), d = c.len * (b.s === CRAB ? 0.32 : 0.46); return [b.x + cos(b.yaw) * cp * d, (b.s === CRAB ? b.y + c.len * 0.3 : b.y + sin(b.pit) * d - c.len * 0.02), b.z + sin(b.yaw) * cp * d]; };
 function botGurgle(b, dt) {
-  const c = CRIT[b.s];
   if (!b.gur) { b.talk = max(0, (b.talk || 0) - dt * 5); return; }
   b.gph = (b.gph || 0) + dt * GURBEAT[b.s];
   const aim = b.s === CRAB ? 0.92 + 0.08 * sin(b.gph * 4) : 0.3 + 0.7 * abs(sin(b.gph));
   b.talk = (b.talk || 0) + (aim - (b.talk || 0)) * min(1, dt * (b.s === CRAB ? 7 : 30));
   // bubbles: as the stock ones (vsBub, shaders.js), each started at the mouth now. life = fract(t * speed / height + seed)
+  // (their size and wobble follow the species' length; the crab's are the shark's)
+  const L = CRIT[b.s === CRAB ? 8 : b.s].len;
   b.gb = (b.gb || 0) + dt * (5 + 5 * Math.random());
   while (b.gb >= 1) {
     b.gb--;
     const p = gurMouth(b), h = min(-p[1] - 0.2, 14); if (h < 0.5) break;
-    const sz = clamp(c.len * 0.035, 0.006, 0.3) * (0.6 + 0.8 * Math.random()), spd = (1.1 + 1.3 * Math.random()) * (0.6 + sz * 3), seed = ((-F[TIME] * spd / h) % 1 + 1) % 1;
+    const sz = clamp(L * 0.035, 0.006, 0.3) * (0.6 + 0.8 * Math.random()), spd = (1.1 + 1.3 * Math.random()) * (0.6 + sz * 3), seed = ((-F[TIME] * spd / h) % 1 + 1) % 1;
     if (gurBub.length >= GURMAX) gurBub.shift();
-    gurBub.push([p[0], p[1], p[2], sz, seed, spd, h, -min(0.012 + c.len * 0.004, 0.06), F[TIME] + h / spd * 0.985]);
+    gurBub.push([p[0], p[1], p[2], sz, seed, spd, h, -min(0.012 + L * 0.004, 0.06), F[TIME] + h / spd * 0.985]);
   }
 }
 // A gurgle is answered by the gurgler's own kind: a bot of the same species close by (and not busy hunting or
