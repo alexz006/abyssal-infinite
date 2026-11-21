@@ -181,13 +181,13 @@ The limits are set to match each other (`source/src/bots.js`, `server/src/sea.js
 
 The **Detail** row in the menu's **Graphics** panel picks the detail level; the current one is lit. Each level is the same world, built with less in it, and with fewer creatures around you (26, 20 or 14; the **Creatures** row of the World panel halves or doubles that):
 
-| Level | What it is | Picked on a first visit for |
+| Level | What it is | Proposed on a first visit for |
 |---|---|---|
-| **High** | The full scene | Computers |
-| **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | - |
+| **High** | The full scene | - |
+| **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | Computers |
 | **Low** | Every graphics setting at its least: the 80 m draw distance, a quarter of the leaves, the smallest shadow map, no anti-aliasing, no light rays, no creature shadows; coarser rocks and corals, 480p to start with | Phones, and computers with 4 GB of memory or less |
 
-If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, world and sound settings for the next visit.
+A first visit asks which level to build before anything is compiled: three buttons on the loading screen, the proposed one lit (`#z` in `source/template.html`, asked in `source/src/quality.js`). The answer is kept at once, so the question comes only that one time; later the level is changed in the menu. If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, world and sound settings for the next visit.
 
 ## Graphics settings
 
@@ -289,7 +289,7 @@ for the crab), **Gurgle** (held; **Block** for the crab) and **Burst**. The **Co
 a **Joystick** instead: the left thumb is a stick to swim by - forward, back and sideways, and faster when pushed far
 out - and the right thumb turns the view. The **−** and **+** buttons beside the menu button move the camera further and
 nearer, and a short tap on the sonar changes its range. The menu's dive button has a square Home button beside it (a phone has no key `1`): it puts you at the first viewpoint and resumes. The choice is kept in `localStorage.abyssalTouch`; the code is `touch` in
-`source/src/main.js`. On a first visit a phone starts at the Low detail level.
+`source/src/main.js`. On a first visit a phone is proposed the Low detail level.
 | Detail level, graphics | **Graphics** in the menu (applying them reloads the page) |
 | Water, number of creatures, time of day, colours | **World** in the menu (applying them reloads the page) |
 | Volume of water, music, sea life, gurgling | **Sound** in the menu |

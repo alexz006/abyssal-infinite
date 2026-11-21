@@ -9,8 +9,19 @@ const mob = matchMedia('(pointer:coarse)').matches, mem = navigator.deviceMemory
 const keep = (k, v) => { try { localStorage[k] = v; } catch {} };
 let SV = [], LV, bad;
 try { SV = (localStorage.abyssal || '').split(','); bad = localStorage.abyssalLoad; } catch {}
-LV = SV[0] ? +SV[0] : mob || mem <= 4 ? 2 : 0; // a first visit: Low on every phone (its memory says nothing of its graphics chip)
+LV = SV[0] ? +SV[0] : mob || mem <= 4 ? 2 : 1; // a first visit: Medium on a computer, Low on every phone (its memory says nothing of its graphics chip)
 if (bad && LV < 2) { SV = [++LV]; keep('abyssal', LV); }
+// A first visit asks which level to build, before anything is compiled: three buttons on the loading screen (#z in
+// template.html), the level picked above lit. The answer is kept at once, so the question comes that one time and the
+// menu's Detail row takes over. (Not asked where there is nothing to build, nor of dev.html#offscreen's automation.)
+const z = document.getElementById('z');
+if (!SV[0] && navigator.gpu && !/offscreen/.test(location.hash)) {
+  const bs = [...z.querySelectorAll('button')];
+  bs[2 - LV].className = 'on'; z.parentNode.className = 'z'; bs[2 - LV].focus();
+  LV = await new Promise((ok) => bs.forEach((b, i) => (b.onclick = () => ok(2 - i))));
+  keep('abyssal', LV);
+}
+z.parentNode.className = ''; // (template.html puts the question up before this script is read)
 // water: 0 lagoon (the original's green-blue haze), 1 clear, 2 crystal (blue and far-seeing, like an aquarium; the default);
 // localStorage.abyssalWater. sig: scattering, kd: absorption on the way down, col: the water's colour, amb: skylight
 let WQ = 2; try { const v = localStorage.abyssalWater; if (v != null && v !== '') WQ = Math.min(2, Math.max(0, +v | 0)); } catch {}

@@ -11,6 +11,7 @@
 - **It never ends.** Swim in any direction and the world is generated around you. Come back later and every place is
   exactly as you left it.
 - **Made entirely by code.** No images, no 3D models, no sound files: **one small HTML file**, nothing to install.
+  (The one picture, on the loading screen, is a screenshot fetched from this repository, and is simply absent offline.)
 
 > A fork of [Abyssal Garden](https://github.com/Noniv/abyssal-garden) by Maksymilian Dendura (MIT), a single
 > hand-crafted underwater scene. This fork keeps that scene as your starting point and adds the endless sea, the
@@ -29,7 +30,8 @@
 
 ## Play
 
-**https://abyssal-infinite.wasd.fly** - multiplayer: everyone who opens it plays in the same sea.
+**https://abyssal-infinite.wasd.fly** - multiplayer: everyone who opens it plays in the same sea. The game's page, next
+to other browser games: [wasd.fly/abyssal-infinite](https://wasd.fly/abyssal-infinite/).
 
 To play on your own, offline: download [`index.html`](index.html) and open it in **Chrome** or **Edge** on a desktop
 computer. You need a browser with **WebGPU**. It also runs on an iPhone with iOS 26 (Safari or Chrome).
@@ -97,9 +99,10 @@ see [`server/README.md`](server/README.md). A page opened from a file plays alon
 
 All in the menu, and remembered by your browser:
 
-- **Detail** (Low / Medium / High): how much grows in the world and how many creatures surround you. Computers start
-  on High, phones on Low. If loading crashes the tab, the page starts again one level lower.
-- **Graphics**: draw distance, resolution, plants, shadows, anti-aliasing, light rays. Applying them reloads the page.
+- **Detail** (Low / Medium / High): how much grows in the world and how many creatures surround you. On a first visit the game asks which
+  level to start with (Medium is proposed on a computer, Low on a phone). If loading crashes the tab, the page starts again one level lower.
+- **Graphics**: draw distance, resolution, plants, shadows, anti-aliasing, light rays, the surface (flat, or simulated
+  waves). Applying them reloads the page.
 - **World**: the water (Lagoon, Clear or Crystal), how many creatures live around you (Few, Medium, Many; with Few,
   health drains half as fast), the time of day (Morning, Noon, Evening, Night) and the colours (Vivid, or Natural
   without the magenta and turquoise).
