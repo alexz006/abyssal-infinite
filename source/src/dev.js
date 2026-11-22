@@ -90,6 +90,7 @@ window.abyssal = {
   gur: (on, n = 0) => { menu = false; kg = on ? 1 : 0; if (me) me.gur = !!on; for (let i = 0; i < n; i++) { F[TIME] += 1 / 30; botStep(1 / 30); } return me ? [me.talk, gurN] : null; },
   menu: () => { ui(true); const m = $('m'), h = m.firstElementChild, a = $('a'), f = $('f'); return { H: m.clientHeight, W: m.clientWidth, font: m.style.fontSize, titleTop: h.offsetTop, titleW: h.offsetWidth, bottom: a.offsetTop + a.offsetHeight, links: f.style.display === 'none' ? null : f.offsetTop, highs: CRIT.map((c) => +c.high.toFixed(3)) }; },
   hide: (v) => { HIDE = v; },
+  lod: (v) => { if (v) lk = lkT = v; return [+lk.toFixed(2), +lkT.toFixed(2), +F[GPU].toFixed(2)]; }, // the detail distances, times v (and what they are now, with the GPU time)
   // offscreen: one frame of `ms` milliseconds, finished on the GPU; and the streaming run to the end without drawing
   step: async (ms) => { frame(F[LAST] + ms); await Q.onSubmittedWorkDone(); },
   // stands the camera `up` metres above the sea floor at x, z, looking along (dx, dz)

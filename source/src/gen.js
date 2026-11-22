@@ -347,7 +347,7 @@ function genTile(tx, tz, D, OY, ny) {
       if (T.wn[k + 1] < 0.8 || nearFly(x, y, z, 1.3)) continue;
       if (pl > 0 && rnd() < pl * (1 - sstep(0.45, 0.6, fbm(x * 0.012, 33, z * 0.012, 2)))) continue;
       const sc = 0.05 + 0.3 * pow(rnd(), 2), q = qRand();
-      nth++ % THIN || chunks[6][cellOf(x, z)].push(x, y - sc * 0.25, z, sc, q[0], q[1], q[2], q[3], 1, rnd(), 44, 0);
+      nth++ % THIN || chunks[6][cellOf(x, z)].push(x, y - sc * 0.25, z, sc, q[0], q[1], q[2], q[3], 1, rnd(), 30, 0); // (30: they have no size left where their cells stop being drawn, main.js)
     }
   }
   // --- set pieces of the home region (each list is rolled whole, from its own seed; a tile keeps what stands on it)

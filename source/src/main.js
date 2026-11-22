@@ -166,7 +166,7 @@ moveWindow(F[CX], F[CZ]);
 // them together (1 = 135 m): DET0 is the distance setting, and frame() draws it in further while tiles are late.
 const PIXMAX = 3840 * 2160, // auto never draws more than this (it was 2560 x 1440: an ultrawide window stayed at about 90%)
    PIXMIN = mob || LV > 1 ? 25e4 : 5e5, DET0 = VIEWD / 135;
-let W = 0, H = 0, DW = 0, DH = 0, pix = RESQ ? 1e9 : +SV[1] || (LV > 1 ? 41e4 : mob ? 1280 * 720 : PIXMAX), det = DET0, dynN = 0, dynT = 0, dynG = 0, dynGN = 0, dynBad = 0, dynOk = 0, dynWait = 3, dynFast = 1;
+let W = 0, H = 0, DW = 0, DH = 0, pix = RESQ ? 1e9 : +SV[1] || (LV > 1 ? 41e4 : mob ? 1280 * 720 : PIXMAX), det = DET0, lk = 1, lkT = 1, dynN = 0, dynT = 0, dynG = 0, dynGN = 0, dynBad = 0, dynOk = 0, dynWait = 3, dynFast = 1;
 let passScene, passRays, passBlur, bgBlur, passPost, bgRays, bgPost, bloomPass = [], bloomBG = [], targets = [];
 const NB = LV > 1 ? 3 : 6; // levels of the bloom chain (Low: fewer, a tighter glow)
 // the frame rate setting: FT a frame's time (0: every frame the screen shows), DK auto resolution's budget against 60 fps
@@ -203,7 +203,7 @@ function resize() {
   // down: res -> b0 -> ... -> b5 ; up: b5 -> b4 (additive) ... -> b0
   for (let i = 0; i < NB; i++) { bloomPass.push({ colorAttachments: [colorAtt(vBl[i], true)] }); bloomBG.push(blitBG(i ? vBl[i - 1] : vRes)); }
   for (let i = NB - 1; i > 0; i--) { bloomPass.push({ colorAttachments: [colorAtt(vBl[i - 1], false)] }); bloomBG.push(blitBG(vBl[i])); }
-  UB[52] = W; UB[53] = H; UB[54] = 1 / W; UB[55] = 1 / H;
+  UB[52] = W; UB[54] = 1 / W; UB[55] = 1 / H;
 }
 resize();
 addEventListener('resize', resize);
@@ -253,7 +253,7 @@ function render() {
   let dq = (-cy - 60) / 240; dq = dq < 0 ? 0 : dq > 1 ? 1 : dq;
   let da = (-cy - 300) / 400; da = da < 0 ? 0 : da > 1 ? 1 : da;
   m[56] = EXPO * (0.6 + 0.4 * ek) * (0.55 + 0.45 * es) * (1 + 15 * dq * dq * (3 - 2 * dq) + 12 * da);
-  m[57] = RAYS; m[58] = det;
+  m[57] = RAYS; m[58] = det; m[53] = lk;
   m[59] = dq * dq * (3 - 2 * dq); // how far into the dark: the deep's own faint glow (see amb() and fog())
   botShadows(UB);
   Q.writeBuffer(ubo, 0, UB);
@@ -286,13 +286,13 @@ function render() {
     if (!t.vis || t.d2 > 22500) continue;
     for (let i = 0; i < NCHUNK && !(HIDE & 2048); i++) {
       const c = t.chunks[i], big = i > 2 && i < 6;
-      drawPart(r, t, c, 3, meshes[14 + i], 0, 0, i > 5 ? 30 : big ? 40 : 96);
-      if (big) drawPart(r, t, c, 3, meshes[20 + i], 0, 40, 150);
+      drawPart(r, t, c, 3, meshes[14 + i], 0, 0, i > 5 ? 30 : big ? 40 * lk : 96);
+      if (big) drawPart(r, t, c, 3, meshes[20 + i], 0, 40 * lk, 150);
     }
     for (let i = 0; i < 6 && !(HIDE & 4096); i++) {
       const lod = i === 3 || i === 4;
-      drawPart(r, t, t.props[i], 3, meshes[4 + i], 0, 0, lod ? 6 : 132);
-      if (lod) drawPart(r, t, t.props[i], 3, meshes[18 + i], 0, 6, 132);
+      drawPart(r, t, t.props[i], 3, meshes[4 + i], 0, 0, lod ? 6 * lk : 132);
+      if (lod) drawPart(r, t, t.props[i], 3, meshes[18 + i], 0, 6 * lk, 132);
     }
   }
   if (HIDE & 512) r.setScissorRect(0, 0, W, H);
@@ -303,11 +303,11 @@ function render() {
   for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[5]; if (n && t.d2 < 32400 && !(HIDE & 8)) { r.setVertexBuffer(1, t.miscB); r.drawIndexed(FISH.ib.length, n, FISH.i0, FISH.v0, t.misc[4]); } }
   // kelp and plants: 9-row blades up close, 5 rows mid-range, a decimated set far away
   r.setPipeline(pLeaf); if (HIDE & 8192) r.setScissorRect(0, 0, 1, 1);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 576 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 18, 0, 24); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 576 * lk * lk && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 18, 0, 24 * lk); } }
   r.setPipeline(pLeaf5);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 3364 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 10, 24, 58); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 3364 * lk * lk && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 10, 24 * lk, 58 * lk); } }
   r.setPipeline(pLeafF);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 22500 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.bigF, 5, false, 6, 58, 150); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 22500 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.bigF, 5, false, 6, 58 * lk, 150); } }
   r.setPipeline(pLeafS);
   for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 4900 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.small, 1.5, false, 6, 0, 70); } }
   if (HIDE & 8192) r.setScissorRect(0, 0, W, H);
@@ -373,7 +373,7 @@ function frame(now) {
   const dtr = now - F[LAST]; F[LAST] = now;
   let dt = dtr / 1000; if (dt > 0.1) dt = 0.1;
   // Dynamic resolution for 60 fps (30 with that frame rate chosen: DK doubles every limit): every second (0.4 s behind the menu, and until the first period at full pace) scale the load by k
-  if (!RESQ && dtr < 1e3 && (dynT += dtr) > 0 && (dynN++, dynT > (menu || dynFast ? 400 : 1000))) {
+  if (dtr < 1e3 && (dynT += dtr) > 0 && (dynN++, dynT > (menu || dynFast ? 400 : 1000))) {
     const a = dynT / dynN, g = dynGN ? dynG / dynGN : 0; let k = 1;
     // with GPU timing: keep it between 9.8 and 13.6 ms
     if (g) { if (g > 13.6 * DK || g < 9.8 * DK) k = 11.7 * DK / g; }
@@ -383,10 +383,15 @@ function frame(now) {
     // at the display's rate there is no telling if there is room, so try a little more now and then
     else { dynFast = dynBad = 0; if (a < 12.5 * DK) k = 15 * DK / a; else if (++dynOk > dynWait) { k = 1.17; dynOk = 0; } }
     k = k < 0.5 ? 0.5 : k > 1.7 ? 1.7 : k; const top = min(PIXMAX, DW * DH), was = pix;
+    // The distances at which things get their detail (lk times the usual ones, see render()) are tuned the same way,
+    // from the GPU time alone: with every pixel drawn and the frame under half full they move out, up to 2.5 times,
+    // and a frame that fills up brings them back before any pixels are given up.
+    if (g && !OFF) { if (g > 8.5 * DK) { if (lkT > 1) { lkT = max(1, lkT * 7 * DK / g); if (k < 1) k = 1; } } else if (g < 6 * DK && pix >= top && lkT < 2.5) lkT = min(2.5, lkT * 1.15); }
     if (!RESQ) { pix = min(pix, top) * k; pix = pix < PIXMIN ? PIXMIN : pix > top ? top : pix; }
     if (was !== pix) keep('abyssal', [LV, pix < top ? pix | 0 : '']); // nothing kept at full resolution
-    dynN = dynT = dynG = dynGN = 0; resize();
+    dynN = dynT = dynG = dynGN = 0; RESQ || resize();
   }
+  lk += lkT > lk ? min(lkT - lk, dt * 0.2) : max(lkT - lk, -dt * 0.6); // (eased, so the detail does not arrive in steps)
   F[TIME] += dt;
   {
     // touch, one finger: holding the finger away from where it went down keeps turning, like a joystick
@@ -434,7 +439,7 @@ function frame(now) {
   if (hud) {
     hN++; if (dtr > hMax) hMax = dtr; if (dtr < hMin) hMin = dtr; if (dtr > hPer * 1.5) { hLate++; hTot++; }
     F[HUDT] += dtr / 1000;
-    if (F[HUDT] > 0.5) { info.textContent = `${(hN / F[HUDT]).toFixed(0)} fps  ·  worst frame ${hMax.toFixed(1)} ms  ·  late frames ${hLate} (total ${hTot})  ·  GPU ${F[GPU].toFixed(2)} ms  ·  ${W}x${H} (${W * 100 / DW | 0}%)  ·  x ${F[CX].toFixed(0)} z ${F[CZ].toFixed(0)}  ·  tiles ${nLoaded}/${LW * LW}`; F[HUDT] = 0; hPer = hMin; hN = 0; hMax = 0; hMin = 1e9; hLate = 0; }
+    if (F[HUDT] > 0.5) { info.textContent = `${(hN / F[HUDT]).toFixed(0)} fps  ·  worst frame ${hMax.toFixed(1)} ms  ·  late frames ${hLate} (total ${hTot})  ·  GPU ${F[GPU].toFixed(2)} ms  ·  ${W}x${H} (${W * 100 / DW | 0}%)  ·  x ${F[CX].toFixed(0)} z ${F[CZ].toFixed(0)}  ·  tiles ${nLoaded}/${LW * LW}  ·  detail x${lk.toFixed(2)}`; F[HUDT] = 0; hPer = hMin; hN = 0; hMax = 0; hMin = 1e9; hLate = 0; }
   }
 }
 

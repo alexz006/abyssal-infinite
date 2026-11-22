@@ -394,6 +394,11 @@ fn fog(c: vec3f, wp: vec3f, z: f32) -> vec3f {
     + vec3f(.0007, .0026, .0048) * (g.mis.w * (1. - exp(-.025 * de))); // in the dark of the deep the water itself glows a little: shapes stand out against it
 }
 fn qrot(q: vec4f, v: vec3f) -> vec3f { return v + 2. * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
+// How much of a small thing is there at the distance d, when its kind is drawn up to lim metres (times the draw
+// distance in g.mis.z): it grows from nothing over the last quarter of its own range, and that range is between 4/5
+// and all of lim by the thing's random number h, so a field of them comes in one by one, not as a front. The draw
+// calls leave a cell out at lim (drawPart), where every one of its things has no size left.
+fn grow(d: f32, lim: f32, h: f32) -> f32 { let l = lim * g.mis.z * (.8 + .2 * h); return 1. - ss(l * .75, l, d); }
 `;
 
 // ---------------------------------------------------------------- solid meshes (terrain, rocks, set pieces, sponges, coral)
@@ -404,8 +409,8 @@ struct VO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
 @vertex fn vs(i: VI) -> VO {
   var o: VO;
   var sc = i.a.w;
-  if (i.c.x < 1.5 && i.c.z > 1.5 && g.res.x > 0.) { sc *= 1. - ss(i.c.z * .7, i.c.z, distance(i.a.xyz, g.cam.xyz) / g.mis.z); }
-  if (i.c.x > 3.5 && g.res.x > 0.) { sc *= 1. - ss(106., 130., distance(i.a.xyz, g.cam.xyz) / g.mis.z); } // sponges, corals: they grow in behind the curtain
+  if (i.c.x < 1.5 && i.c.z > 1.5 && g.res.x > 0.) { sc *= grow(distance(i.a.xyz, g.cam.xyz), i.c.z, fract(i.c.y * 17.3)); }
+  if (i.c.x > 3.5 && g.res.x > 0.) { sc *= grow(distance(i.a.xyz, g.cam.xyz), 130., fract(i.c.y * 17.3)); } // sponges, corals: they grow in behind the curtain
   var w = i.a.xyz + qrot(i.b, i.p * sc);
   w.y += sin(g.cam.w * .3 + i.c.y * 40.) * i.c.w;
   o.cp = g.vp * vec4f(w, 1.); o.wp = w; o.n = qrot(i.b, i.n.xyz); o.op = i.p * i.a.w + i.c.y * 37.; o.on = i.n.xyz;
@@ -436,7 +441,7 @@ fn tri(p: vec3f, n: vec3f, s: f32) -> TP {
   let A = tri(o1, on, .1 * ts); let B = tri(o1, on, .43 * ts); let C = tri(o1, on, 1.9 * ts);
   // (Low leaves out what costs texture reads and hardly shows at its resolution: the finest rock detail up close, here,
   // the colour fringes of the light pattern, and the reads only the fluke and the ship need are made for them alone)
-  ${LV > 1 ? 'let F = C; let fk = 0.;' : 'let F = tri(o1, on, 6.7 * ts); let fk = ss(10., 1.5, dist) * f32(mat <= 1);'}
+  ${LV > 1 ? 'let F = C; let fk = 0.;' : 'let F = tri(o1, on, 6.7 * ts); let fk = ss(10. * g.res.y, 1.5 * g.res.y, dist) * f32(mat <= 1);'}
   ${LV > 1 ? 'let lw = log2(max(length(dpdx(i.op)), length(dpdy(i.op))) * 1024.);' : 'let Wd = textureSample(tD, sR, vec2f(o2.x * .06, (o2.y + o2.z) * .7));'}
   let big = textureSample(tD, sR, o2.xz * .013 + o2.y * .021).a;
   let big2 = textureSample(tD, sR, o2.zx * .031 + o2.y * .043 + .37).a;
@@ -499,7 +504,7 @@ ${NAT ? `      alb = mix(alb, vec3f(.44, .28, .11) * (.7 + .5 * B.h) * (.85 + .3
     emi = alb * .01; flu = .75; gloss = .25; bump = 1.5;
   }
   let rip = select(0., flt * max(gm.a, gm.g) * cos((i.wp.x * .8 + i.wp.z * .35) * 5. + A.c * 9.) * .65, mat == 0);
-  let N = normalize(qrot(i.q, normalize(on + (A.n * .85 + B.n * .65 + C.n * .45 * ss(60., 12., dist) + F.n * .5 * fk) * bump + vec3f(.8, sgro, .35) * vec3f(rip, 1., rip))));
+  let N = normalize(qrot(i.q, normalize(on + (A.n * .85 + B.n * .65 + C.n * .45 * ss(60. * g.res.y, 12. * g.res.y, dist) + F.n * .5 * fk) * bump + vec3f(.8, sgro, .35) * vec3f(rip, 1., rip))));
   let L = g.sun.xyz; let V = normalize(g.cam.xyz - i.wp);
   let v1 = vol(i.wp + n0 * 1.5); let v2 = vol(i.wp + n0 * 4.5);
   let ao = (sat((v1.r - .5) * 8.) * .55 + sat((v2.r - .5) * 2.7) * .45) * vao * ss(.12, .6, hgt);
@@ -574,10 +579,11 @@ fn pal(h: f32) -> vec3f {
   let cd = distance(i.a.xyz, g.cam.xyz); let far = FAR * g.mis.z;
   // Between 44 and 58 m every second leaf (negative width) thins away while the others widen by half: at 58 m, where
   // the draw calls change over to the far set (those wider leaves alone), the two look the same.
-  let lod = select(ss(44. * g.mis.z, 58. * g.mis.z, cd) * LODW, 0., shp_);
+  let lz = g.mis.z * g.res.y; // (g.res.y: how many times further than usual things get their detail, lk in main.js)
+  let lod = select(ss(44. * lz, 58. * lz, cd) * LODW, 0., shp_);
   let bz = abs(i.b.z) * select(mix(1., 1.5, lod), 1. - lod, i.b.z < 0.);
-  let nearK = select(1. - ss(26., 40., cd), 0., shp_);
-  let farK = select((1. - ss(far * .8, far, cd)) * ss(.6, 2.2, distance(c, g.cam.xyz)) * ss(len * 1.1 + .5, len * 2.2 + 1.2, distance(i.a.xyz + d * (len * .5), g.cam.xyz)), 1., shp_);
+  let nearK = select(1. - ss(26. * g.res.y, 40. * g.res.y, cd), 0., shp_);
+  let farK = select(select(1. - ss(far * .8, far, cd), grow(cd, FAR, s2), LODW == 0.) * ss(.6, 2.2, distance(c, g.cam.xyz)) * ss(len * 1.1 + .5, len * 2.2 + 1.2, distance(i.a.xyz + d * (len * .5), g.cam.xyz)), 1., shp_);
   let ruf = sin(v * 10. + s2 * 30. + t * .6) * bz * .36 * u * shape2(v) * nearK;
   var p = c + S * (u * farK * select(bz * .5 * shape, select(max(bz * .5, .09) * shape, 0., ty == 1), shp_));
   p += N2 * ruf;
@@ -619,7 +625,7 @@ struct GO { @builtin(position) cp: vec4f, @location(0) uv: vec2f, @location(1) @
   let vv = vol(i.wp + vec3f(0., .8, 0.));
   let E = sunE(i.wp.y, z) * shadow1(i.wp + L * .3);
   let ndl = dot(n, L);
-  var alb = i.col * (.72 + .28 * ss(0., .25, abs(i.uv.x))) * mix(.5, 1.12, i.uv.y) * (1. - .45 * ss(30., 8., dist) * ss(.6, 1., sin(i.uv.y * 40. - abs(i.uv.x) * 7. + i.sd.x * 40.))) * (.58 + .42 * ss(0., .13, abs(i.uv.x))) * (.5 + 1.0 * lt.b) * (.65 + .7 * lt.a);
+  var alb = i.col * (.72 + .28 * ss(0., .25, abs(i.uv.x))) * mix(.5, 1.12, i.uv.y) * (1. - .45 * ss(30. * g.res.y, 8. * g.res.y, dist) * ss(.6, 1., sin(i.uv.y * 40. - abs(i.uv.x) * 7. + i.sd.x * 40.))) * (.58 + .42 * ss(0., .13, abs(i.uv.x))) * (.5 + 1.0 * lt.b) * (.65 + .7 * lt.a);
   let ndv = sat(dot(n, V));
   let ir = .5 + .5 * cos(TAU * (vec3f(0., .33, .67) + ndv * 1.1 + i.sd.x * .22 + i.uv.y * .5 + .55));
   alb = mix(alb, alb * .5 + ir * vec3f(.15, .13, .30), i.pr.z * (1. - ndv) * .8);

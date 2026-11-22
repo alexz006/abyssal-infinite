@@ -22,7 +22,7 @@ How each part of the game works and where it lives in the code. For what the gam
 - Everything is drawn with **WebGPU** directly. No game engine or 3D library is used.
 - The ship, whale tail, mantas, fish, corals and all ten playable creatures are built from simple mathematical shapes.
 - The sound, including every creature's voice, is synthesized live with the Web Audio API.
-- It's built to run smoothly. With the resolution on auto it aims for 60 fps by lowering first the resolution and then how far away plants and rocks are drawn, in small steps. The scene is already running, blurred, behind the start menu, so most of that tuning is done before you dive in.
+- It's built to run smoothly. With the resolution on auto it aims for 60 fps by lowering first the resolution and then how far away plants and rocks are drawn, in small steps. The scene is already running, blurred, behind the start menu, so most of that tuning is done before you dive in. When the graphics card has time to spare at full resolution, the distances at which kelp, rocks and corals get their finer shapes and relief move out, up to 2.5 times, and come back first when the frame fills up (`lk` in `source/src/main.js`; key `H` shows it as "detail").
 
 ## The deep: keys 7-0
 

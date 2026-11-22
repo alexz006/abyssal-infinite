@@ -183,6 +183,6 @@ const waterPass = waterViews.map((v) => ({ colorAttachments: [colorAtt(v, true)]
 // ---------------------------------------------------------------- sun
 const SUN = (() => { const v = [0.27, 1, -0.24], l = hypot(...v); return v.map((c) => c / l); })();
 for (let i = 0; i < 3; i++) { UB[48 + i] = UBS[48 + i] = SUN[i]; }
-UBS[32] = 0; UBS[33] = -20; UBS[34] = 0; UBS[35] = 0; UBS[58] = 1;
+UBS[32] = 0; UBS[33] = -20; UBS[34] = 0; UBS[35] = 0; UBS[58] = 1; UBS[53] = 1;
 // one instance that leaves a mesh where it is: the terrain is drawn with the solids' pipeline
 const ibIdent = buf(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0]), BU.VERTEX);
