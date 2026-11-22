@@ -37,6 +37,10 @@ computer. You need a browser with **WebGPU**. It also runs on an iPhone with iOS
 
 ## How to play
 
+<p align="center">
+  <img src="screenshots/menu.jpg" width="80%" alt="The menu: the creature panel with the crab chosen, its size, speed, depths, what it eats and what eats it">
+</p>
+
 **Pick a creature** with the creature button in the menu: crab, fry, chromis, perch, barracuda, grouper, tuna,
 dolphin, shark or whale. The panel shows each one's size, speed, depth range, what it eats and what eats it. You can
 also choose the free camera and just look around.
