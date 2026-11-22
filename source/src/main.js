@@ -102,7 +102,7 @@ const MANTA = meshes[12], FISH = meshes[13];
 // drifting particles
 rseed(15);
 const snow = new Float32Array(9000 * 4); for (let i = 0; i < snow.length; i++) snow[i] = rnd();
-const ibSnowB = buf(snow, BU.VERTEX), nSnow = snow.length / 4;
+const ibSnowB = buf(snow, BU.VERTEX), nSnow = LV > 1 ? 3000 : 9000; // Low draws the first third
 
 // ---------------------------------------------------------------- the first window of the world
 await say('Sculpting the seabed…', 0.2, 600);
@@ -164,21 +164,22 @@ moveWindow(F[CX], F[CZ]);
 // it for 60 fps, starting where the last visit left it. `det` scales every draw distance and the haze that hides
 // them together (1 = 135 m): DET0 is the distance setting, and frame() draws it in further while tiles are late.
 const PIXMAX = 3840 * 2160, // auto never draws more than this (it was 2560 x 1440: an ultrawide window stayed at about 90%)
-   PIXMIN = mob ? 25e4 : 5e5, DET0 = VIEWD / 135;
+   PIXMIN = mob || LV > 1 ? 25e4 : 5e5, DET0 = VIEWD / 135;
 let W = 0, H = 0, DW = 0, DH = 0, pix = RESQ ? 1e9 : +SV[1] || (LV > 1 ? 41e4 : mob ? 1280 * 720 : PIXMAX), det = DET0, dynN = 0, dynT = 0, dynG = 0, dynGN = 0, dynBad = 0, dynOk = 0, dynWait = 3, dynFast = 1;
 let passScene, passRays, passBlur, bgBlur, passPost, bgRays, bgPost, bloomPass = [], bloomBG = [], targets = [];
-const NB = 6;
+const NB = LV > 1 ? 3 : 6; // levels of the bloom chain (Low: fewer, a tighter glow)
+let capT = 0; // Low: when the last frame was due (frame() keeps it to 60 a second)
 function resize() {
   DW = max(2, round(canvas.clientWidth * devicePixelRatio)); DH = max(2, round(canvas.clientHeight * devicePixelRatio));
   const s = RESQ || min(1, sqrt(pix / (DW * DH)));
-  const w = max(2, round(DW * s) & ~1), h = max(2, round(DH * s) & ~1);
+  const w = max(2, round(DW * s)), h = max(2, round(DH * s)); // (any size: at 100% exactly the window's, so nothing is stretched)
   if (w === W && h === H) return;
   dynN = dynG = dynGN = 0; dynT = -300; // let the new size settle before measuring again
   W = w; H = h; canvas.width = W; canvas.height = H;
   if (!OFF) ctx.configure({ device, format: FMT, alphaMode: 'opaque' });
   for (const t of targets) t.destroy();
   const tMS = tex(AA > 1 ? W : 1, H, HDR, TU.RENDER_ATTACHMENT, { samples: AA }), tDp = tex(W, H, DEPTH, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING, { samples: AA });
-  const tRes = tex(W, H, HDR, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING), tRay = tex(W / 2, H / 2, HDR, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING), tRay2 = tex(W / 2, H / 2, HDR, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING);
+  const tRes = tex(W, H, HDR, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING), tRay = tex(W >> 1, H >> 1, HDR, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING), tRay2 = tex(W >> 1, H >> 1, HDR, TU.RENDER_ATTACHMENT | TU.TEXTURE_BINDING);
   targets = [tMS, tDp, tRes, tRay, tRay2];
   if (OFF) { tOff = tex(W, H, FMT, TU.RENDER_ATTACHMENT | TU.COPY_SRC); targets.push(tOff); }
   const bl = [];
@@ -311,9 +312,11 @@ function render() {
   for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[3]; if (n && t.vis && t.d2 < 14400) { r.setVertexBuffer(0, t.miscB); r.draw(4, n, 0, t.misc[2]); } }
   r.setPipeline(pSnow); r.setVertexBuffer(0, ibSnowB); r.draw(4, nSnow);
   r.end();
-  // light shafts
-  r = e.beginRenderPass(passRays); r.setPipeline(pRays); r.setBindGroup(0, bgRays); r.draw(3); r.end();
-  r = e.beginRenderPass(passBlur); r.setPipeline(pRB); r.setBindGroup(0, bgBlur); r.draw(3); r.end();
+  // light shafts (with Light rays off neither pass runs: the shafts' texture stays empty)
+  if (GFX[5]) {
+    r = e.beginRenderPass(passRays); r.setPipeline(pRays); r.setBindGroup(0, bgRays); r.draw(3); r.end();
+    r = e.beginRenderPass(passBlur); r.setPipeline(pRB); r.setBindGroup(0, bgBlur); r.draw(3); r.end();
+  }
   // bloom
   for (let i = 0; i < bloomPass.length; i++) {
     r = e.beginRenderPass(bloomPass[i]); r.setPipeline(i === 0 ? pDown0 : i < NB ? pDown : pUp); r.setBindGroup(0, bloomBG[i]); r.draw(3); r.end();
@@ -357,6 +360,8 @@ function collide() {
 
 function frame(now) {
   if (!OFF) requestAnimationFrame(frame); // offscreen: dev.js steps the frames
+  // Low: at most 60 frames a second on a faster screen (a frame is skipped until 1/60 s, less 2 ms, after the last one was due)
+  if (LV > 1 && !OFF) { if (now - capT < 1000 / 60 - 2) return; capT = max(capT + 1000 / 60, now - 1000 / 60); }
   const dtr = now - F[LAST]; F[LAST] = now;
   let dt = dtr / 1000; if (dt > 0.1) dt = 0.1;
   // Dynamic resolution for 60 fps: every second (0.4 s behind the menu, and until the first period at full pace) scale the load by k
