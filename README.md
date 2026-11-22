@@ -100,23 +100,23 @@ All in the menu, and remembered by your browser:
 
 - **Detail** (Low / Medium / High): how much grows in the world and how many creatures surround you. On a first visit the game asks which
   level to start with (Low is proposed). If loading crashes the tab, the page starts again one level lower.
-- **Graphics**: draw distance, resolution, plants, shadows, anti-aliasing, light rays, the surface (flat, or simulated
-  waves). Applying them reloads the page.
+- **Graphics**: draw distance, resolution, frame rate (30, 60 or as many as the screen shows), plants, shadows,
+  anti-aliasing, light rays, the surface (flat, or simulated waves). Applying them reloads the page.
 - **World**: the water (Lagoon, Clear or Crystal), how many creatures live around you (Few, Medium, Many; with Few,
-  health drains half as fast), the time of day (Morning, Noon, Evening, Night) and the colours (Vivid, or Natural
-  without the magenta and turquoise).
+  health drains half as fast), the time of day (Morning, Noon, Evening, Night) the colours (Vivid, or Natural
+  without the magenta and turquoise) and the boulders floating in the water (off unless you turn them on).
 - **Sound**: separate levels for water, music, sea life and gurgling.
 
 ## How it works
 
-- The world is an endless grid of 48 m tiles; the 8 × 8 around you are loaded, and the water's haze hides the rest.
+- The world is an endless grid of 48 m tiles; up to 8 × 8 around you are loaded (6 × 6 at the shortest draw distance), and the water's haze hides the rest.
 - A tile's rock is sculpted on the graphics card, a few slices per frame. A background worker then builds the sea
   floor and grows kelp, plants, rocks, corals and fish on it, so swimming stays smooth.
 - Everything is a function of position and seeded by where it happens, which is why a place is the same every time.
 - Everything is drawn with **WebGPU** directly: no game engine, no 3D library. Models are built from simple shapes,
   and the sound is synthesized live.
-- With the resolution on auto, the game aims for 60 fps by lowering the resolution and then the draw distance of
-  small things.
+- With the resolution on auto, the game aims for 60 fps (30 if you set that frame rate) by lowering the resolution
+  and then the draw distance of small things.
 
 The details, with the names of the functions and constants behind each feature, are in [`DETAILS.md`](DETAILS.md).
 

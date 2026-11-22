@@ -78,7 +78,7 @@ const buf = (data, usage) => { const b = device.createBuffer({ size: (data.byteL
 const tex = (w, h, format, usage, o = {}) => device.createTexture({ size: [w, h, o.d || 1], format, usage, mipLevelCount: o.mips || 1, sampleCount: o.samples || 1, dimension: o.d ? '3d' : '2d' });
 
 // ---------------------------------------------------------------- static resources
-const sRep = device.createSampler({ addressModeU: 'repeat', addressModeV: 'repeat', magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: LV > 1 ? 1 : 8 });
+const sRep = device.createSampler({ addressModeU: 'repeat', addressModeV: 'repeat', magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: [8, 4, 1][LV] });
 const sClamp = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 // the world textures and the shadow map wrap around (see stream.js)
 const sWrap = device.createSampler({ addressModeU: 'repeat', addressModeV: 'repeat', addressModeW: 'repeat', magFilter: 'linear', minFilter: 'linear' });

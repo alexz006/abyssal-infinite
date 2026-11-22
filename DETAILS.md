@@ -5,7 +5,7 @@ How each part of the game works and where it lives in the code. For what the gam
 
 ## How it works
 
-- The world is an endless grid of 48 m tiles. The 8 × 8 tiles around you are loaded (384 m across; the water hides anything further away).
+- The world is an endless grid of 48 m tiles. Up to 8 × 8 tiles around you are loaded (384 m across; 7 × 7 at the medium draw distance, 6 × 6 at the near one; the water hides anything further away).
 - A tile's rock is sculpted on your graphics card, a few slices per frame. A background worker then turns it into the sea floor mesh and grows the kelp, plants, rocks, sponges, corals, fish schools and mantas on it. The frame loop only uploads the finished tile, so swimming stays smooth while the world is built ahead of you.
 - **A place is the same every time you return.** Rock density is a pure function of position, and every random choice is seeded by where it happens (the tile, or the cell a kelp column stands in), never by the order things were built in.
 - The skylight volume, the ground map and the shadow map wrap around with the period of the loaded window, so a new tile only rewrites its own patch of each.
@@ -184,15 +184,15 @@ The **Detail** row in the menu's **Graphics** panel picks the detail level; the 
 | Level | What it is | Used before any level is chosen, on |
 |---|---|---|
 | **High** | The full scene | - |
-| **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | Computers |
-| **Low** | Every graphics setting at its least: the 80 m draw distance, a quarter of the leaves, the smallest shadow map, no anti-aliasing, no light rays, no creature shadows; coarser rocks and corals, 480p to start with | Phones, and computers with 4 GB of memory or less |
+| **Medium** | Every graphics setting in the middle: the 105 m draw distance, half of the sparkles and pebbles and three eighths of the leaves, the medium shadow map (small rocks, sponges and corals cast no shadows), low light rays, a few creature shadows, waves, no anti-aliasing, 60 fps; three quarters of the scattered rocks | Computers |
+| **Low** | Every graphics setting at its least: the 80 m draw distance, an eighth of the leaves (a quarter by the Plants setting, and half of those), the smallest shadow map, no anti-aliasing, no light rays, no creature shadows, a flat surface, 30 fps; half of the scattered rocks, coarser rocks and corals, 480p to start with | Phones, and computers with 4 GB of memory or less |
 
 A first visit asks which level to build before anything is compiled: three buttons on the loading screen, Low lit for everyone (`#z` in `source/template.html`, asked in `source/src/quality.js`). The answer is kept at once, so the question comes only that one time; later the level is changed in the menu. If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, world and sound settings for the next visit.
 
 ## Graphics settings
 
 The **Graphics** panel in the menu overrides what the detail level chose: draw distance (80 / 105 / 135 m),
-resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), plant density, shadow map size, anti-aliasing, light rays,
+resolution (auto for 60 fps, or a fixed 50 / 75 / 100 %), frame rate (30, 60 or uncapped; Low starts at 30, Medium at 60, and with 30 the auto resolution aims for 30), plant density, shadow map size, anti-aliasing, light rays,
 creature shadows and the sea surface. Choosing a detail level resets them. The settings take effect after a reload: when you leave the
 panel with changes, the game asks whether to apply them and reload, discard them or keep editing. After that
 reload you are where you were, not at home: the world is built around the same spot with the same view, and your
@@ -226,7 +226,7 @@ loaded, so nothing pops into view.
 The **World** panel in the menu, between Graphics and Sound, holds what the sea itself is like. Like the graphics
 settings, its choices are compiled into the shaders and the world's buffers, so leaving the panel with changes asks
 whether to apply them and reload (going from Graphics to World and back does not ask). They are stored in
-`localStorage.abyssalWater` and `localStorage.abyssalWorld` ("creatures,time,colours"; see `source/src/quality.js`).
+`localStorage.abyssalWater` and `localStorage.abyssalWorld` ("creatures,time,colours,floating rocks"; see `source/src/quality.js`).
 
 | Row | Choices | What it does |
 |---|---|---|
@@ -235,6 +235,7 @@ whether to apply them and reload (going from Graphics to World and back does not
 | **Time** | Morning, Noon, Evening, Night | Tints the sunlight, the water's own light and the sky seen through the surface (`DAYQ`: `sun`, `sky`, `win`). The sun does not move: the baked shadows and skylight stay as they are, only colour and brightness change. Night is deep blue with a moon where the sun was; the glowing plants and sparkles stand out |
 | **HUD** | Off, On | Hides or shows the sonar and the lines at the bottom left (the creature's name, its health and stamina bars, messages). It takes effect at once, with no reload (`HUD` in `quality.js`, `localStorage.abyssalHud`) |
 | **Colours** | Vivid, Natural | Vivid is the original palette with magenta carpets, violet sponges and turquoise leaves. Natural (`NAT`) swaps them for the greens, olives, rusts and ochres of a real sea, thins the algae on the rock and lays sand on the level ground. It also gives the light on things back some of the red the water took (`LITK`, from `DAYQ.nat` for each time of day, and `LITA`), so that sand looks like sand and rock is grey and brown rather than turquoise |
+| **Floating rocks** | Off, On | The clusters of boulders that hang in the water over the sea floor (`FLOAT`; placed in `genTile`, `BOULD` at home). Off unless you turn them on |
 
 ## Sound settings
 
@@ -340,7 +341,7 @@ Some easy first tweaks:
 - **Sunlight color:** `SUNC` right next to `PCOL`
 - **Brightness and light rays:** `EXPO` and `RAYS` in `main.js`
 - **Swimming speed:** for the free camera, search for `26 : 7` in `main.js` (fast speed : normal speed); for a creature, `spd` in `CRIT` in `creatures.js`
-- **How much world is loaded:** `WIN` (tiles across the window, a power of two) and `TILE` in `math.js`
+- **How much world is loaded:** `LW` in `stream.js` (tiles across the loaded window, by the draw distance, at most `WIN`), `WIN` (the most, a power of two) and `TILE` in `math.js`
 - **What grows far from home:** the noise-driven rules in `gen.js` (`kelpDens`, `hot`, `zw`, the fish and manta dice)
 - **How many creatures there are:** `BOTN` in `bots.js` (and `POPK` in `quality.js` for the menu's three steps)
 

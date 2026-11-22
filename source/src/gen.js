@@ -6,7 +6,7 @@
 // choice is seeded from where it happens (the tile, or the 2.3 m cell a kelp column stands in): leaving and coming
 // back builds the same place again.
 
-let LV = 0, THIN = 1, POSES = [], flyPts = [];
+let LV = 0, THIN = 1, FLOAT = 0, POSES = [], flyPts = [];
 // The original spread a fixed number of tries over all the terrain vertices of its one world (about NVW of them).
 // A tile gets the same number of tries per vertex.
 const NVW = 700000;
@@ -121,8 +121,11 @@ function genTile(tx, tz, D, OY, ny) {
   // --- instance stores
   const big = Array.from({ length: nCells }, () => []), small = Array.from({ length: nCells }, () => []);
   // Medium and Low keep every 2nd / 4th leaf (but every kelp stem), made wider; the random stream is the same
-  let nth = 0;
-  const leaf = (L, x, y, z, len, yaw, tilt, wid, hA, type, s1, s2, bend) => { if (type === 1 || !(nth++ % THIN)) L[cellOf(x, z)].push(x, y, z, len, yaw, tilt, type === 1 ? wid : wid * (1 + Math.log2(THIN) / 2), hA, type, s1, s2, bend); };
+  let nth = 0, nrk = 0, npl = 0;
+  // rocks scattered over the ground, and leaves (after the Plants setting's own thinning): all of them on High,
+  // 3 of 4 on Medium, every 2nd on Low (the same ones, fewer)
+  const part = (n) => (LV > 1 ? n & 1 : LV ? n & 3 : 1), rock = () => part(nrk++);
+  const leaf = (L, x, y, z, len, yaw, tilt, wid, hA, type, s1, s2, bend) => { if (type === 1 || (!(nth++ % THIN) && part(npl++))) L[cellOf(x, z)].push(x, y, z, len, yaw, tilt, type === 1 ? wid : wid * (1 + Math.log2(THIN) / 2), hA, type, s1, s2, bend); };
   const glints = [];
   const glint = (...a) => { nth++ % THIN || glints.push(...a); };
   const solids = []; // per mesh id: arrays of 12 floats
@@ -306,7 +309,8 @@ function genTile(tx, tz, D, OY, ny) {
   // --- rocks: floating boulder clusters + scattered ground rocks
   {
     const cl = [];
-    if (home) { BOULD.forEach((b, i) => { if (own(b[0], b[2])) cl.push([b, i]); }); }
+    if (!FLOAT) ; // (World: Floating rocks is off)
+    else if (home) { BOULD.forEach((b, i) => { if (own(b[0], b[2])) cl.push([b, i]); }); }
     else { seedAt(tx, tz, 8); if (rnd() < 0.22) cl.push([[rr(X0, X1), min(base + rr(25, 36), -9), rr(Z0, Z1), 10 + rnd() * 12 | 0, rr(5, 9)], -1]); }
     for (const [b, i] of cl) {
       if (i >= 0) seedAt(i, 77, 8);
@@ -324,15 +328,17 @@ function genTile(tx, tz, D, OY, ny) {
     for (let i = tries(2600 * (1 - 0.8 * sk)); i > 0; i--) {
       const k = pickV(); if (T.wn[k + 1] < 0.7 || nearFly(T.wp[k], T.wp[k + 1], T.wp[k + 2], 6)) continue;
       const sc = rr(0.25, 1.3) * (rnd() < 0.1 ? 2 : 1);
-      solid(rnd() * 4 | 0, T.wp[k], T.wp[k + 1] + sc * 0.2, T.wp[k + 2], sc, qRand(), 1, rnd(), 1, 0);
+      const m = rnd() * 4 | 0, q = qRand(), sd = rnd();
+      if (rock()) solid(m, T.wp[k], T.wp[k + 1] + sc * 0.2, T.wp[k + 2], sc, q, 1, sd, 1, 0);
     }
     seedAt(tx, tz, 10);
     for (let i = tries(60000 * (1 - 0.85 * sk) * (1 - 0.5 * pl)); i > 0; i--) {
       const k = pickV(), x = T.wp[k], y = T.wp[k + 1], z = T.wp[k + 2], ny = T.wn[k + 1];
       if (y > -3 || (ny > 0.8 && rnd() < 0.6) || nearFly(x, y, z, 3.5)) continue;
-      const sc = (0.35 + 2.1 * pow(rnd(), 2.6)) * (ny > 0.8 ? 0.5 : 1), q = qRand();
+      const sc = (0.35 + 2.1 * pow(rnd(), 2.6)) * (ny > 0.8 ? 0.5 : 1), q = qRand(), m = (sc > 1.15 ? 3 : 0) + (rnd() * 3 | 0), sd = rnd();
+      if (!rock()) continue;
       if (sc >= 0.8) cover.push(x, y, z, sc * 0.85);
-      chunks[(sc > 1.15 ? 3 : 0) + (rnd() * 3 | 0)][cellOf(x, z)].push(x - T.wn[k] * sc * 0.3, y - ny * sc * 0.3, z - T.wn[k + 2] * sc * 0.3, sc, q[0], q[1], q[2], q[3], 1, rnd(), sc > 1.15 ? 0 : 96, 0);
+      chunks[m][cellOf(x, z)].push(x - T.wn[k] * sc * 0.3, y - ny * sc * 0.3, z - T.wn[k + 2] * sc * 0.3, sc, q[0], q[1], q[2], q[3], 1, sd, sc > 1.15 ? 0 : 96, 0);
     }
     seedAt(tx, tz, 11);
     // pebbles and rubble on the sea floor: sparse on the sand; on the plain they are nodules, lying in fields
@@ -517,10 +523,10 @@ function genTile(tx, tz, D, OY, ny) {
 }
 
 // ---------------------------------------------------------------- worker protocol
-// { init: {LV, POSES, flyPts} } once, then { tx, tz, oy, ny, D: Float32Array } per tile -> the tile, its buffers transferred
+// { init: {LV, THIN, FLOAT, POSES, flyPts} } once, then { tx, tz, oy, ny, D: Float32Array } per tile -> the tile, its buffers transferred
 onmessage = (e) => {
   const m = e.data;
-  if (m.init) { LV = m.init.LV; THIN = m.init.THIN; POSES = m.init.POSES; flyPts = m.init.flyPts; handColumns(); return; }
+  if (m.init) { LV = m.init.LV; THIN = m.init.THIN; FLOAT = m.init.FLOAT; POSES = m.init.POSES; flyPts = m.init.flyPts; handColumns(); return; }
   const t = genTile(m.tx, m.tz, m.D, m.oy, m.ny);
   postMessage(t, [t.terr.vb, t.terr.ib.buffer, t.leaf.buf, t.sol.buf.buffer, t.misc.buf.buffer, t.vol.buffer, t.gm.buffer, t.CI.buffer, t.CG.buffer]);
 };

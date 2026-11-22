@@ -15,6 +15,7 @@ function meshChunk(sd, sub = 2, det = sub > 2) {
   });
 }
 function meshLathe(prof, seg, lump, ribs = 0) {
+  seg = LV > 1 ? seg >> 1 : LV ? seg * 3 >> 2 : seg; // Low: half the triangles, Medium: three quarters
   const m = new Mesh(), rings = [];
   for (const [r, h, ao] of prof) { const ring = []; for (let s = 0; s < seg; s++) { const a = s / seg * TAU, rl = r * (1 + lump * (fbm(cos(a) * 1.5 + h * 2, h * 3, sin(a) * 1.5, 2) - 0.5) + 0.07 * cos(ribs * a + h * 1.5)); ring.push(m.v(cos(a) * rl, h, sin(a) * rl, ao)); } rings.push(ring); }
   for (let k = 0; k < rings.length - 1; k++) for (let s = 0; s < seg; s++) { const s2 = (s + 1) % seg; m.quad(rings[k][s], rings[k + 1][s], rings[k + 1][s2], rings[k][s2]); }
@@ -38,14 +39,14 @@ function meshCoral(fan, lo = LV > 1) {
 }
 function meshTubes() {
   rseed(210);
-  const m = new Mesh();
+  const m = new Mesh(), S = [12, 8, 6][LV], K = [4, 3, 2][LV]; // sides and rings of a tube (Medium: half of the triangles, Low: a quarter)
   for (let i = 0; i < 9; i++) {
     const a = rnd() * TAU, r0 = rr(0, 0.28), h = rr(0.45, 1.1), rad = rr(0.07, 0.12), lean = rr(0.05, 0.3), pts = [];
-    for (let k = 0; k <= 4; k++) pts.push([cos(a) * (r0 + lean * k / 4 * h), h * k / 4, sin(a) * (r0 + lean * k / 4 * h)]);
-    m.tube(pts, (k) => rad * (0.8 + 0.25 * k / 4), 12, false, (k) => 0.35 + 0.65 * k / 4);
+    for (let k = 0; k <= K; k++) pts.push([cos(a) * (r0 + lean * k / K * h), h * k / K, sin(a) * (r0 + lean * k / K * h)]);
+    m.tube(pts, (k) => rad * (0.8 + 0.25 * k / K), S, false, (k) => 0.35 + 0.65 * k / K);
     // rim + dark throat
-    const e = pts[4], n = m.p.length / 3, c = m.v(e[0], e[1] - rad * 1.2, e[2], 0.05);
-    for (let s2 = 0; s2 < 12; s2++) m.tri(n - 12 + s2, n - 12 + (s2 + 1) % 12, c);
+    const e = pts[K], n = m.p.length / 3, c = m.v(e[0], e[1] - rad * 1.2, e[2], 0.05);
+    for (let s2 = 0; s2 < S; s2++) m.tri(n - S + s2, n - S + (s2 + 1) % S, c);
   }
   return m;
 }

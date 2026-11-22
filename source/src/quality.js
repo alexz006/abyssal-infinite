@@ -2,7 +2,8 @@
 // quality level, chosen before anything is built
 // ============================================================================
 // LV: 0 High, 1 Medium, 2 Low. Medium and Low keep every 2nd / 4th leaf, glint and pebble and bake fewer shadows;
-// Low also uses coarser meshes and cheaper filtering, and sets every graphics setting to its least (see gdef).
+// of the leaves left and of the scattered rocks they keep 3 of 4 / every 2nd. Low also uses coarser meshes and cheaper filtering. A level sets
+// every graphics setting: Low to its least, Medium to the middle, High to the most (see gdef).
 // localStorage.abyssal = "level,pixels,detail". abyssalLoad is set while the world is built: still set on the next
 // visit means that load crashed the tab, so this one runs a level lower.
 const mob = matchMedia('(pointer:coarse)').matches, mem = navigator.deviceMemory;
@@ -31,20 +32,21 @@ const WATERQ = [
   { sig: '.019, .0079, .0062', kd: '.056, .0180, .0125', col: '.08, .44, 1.08', amb: '.14, .48, 1.0', zs: 0.36 },
 ][WQ];
 // graphics settings: each one follows the detail level until it is set by hand in the menu's graphics panel.
-// localStorage.abyssalGfx = "distance,resolution,plants,shadows,smoothing,rays,animal shadows,surface", an option's number or empty.
+// localStorage.abyssalGfx = "distance,resolution,plants,shadows,smoothing,rays,animal shadows,surface,frame rate", an option's number or empty.
 //   distance   0 near (80 m), 1 medium (105 m), 2 far (135 m): where the water's haze closes over everything
 //   resolution 0 auto (tuned for 60 fps), 1 50%, 2 75%, 3 100% of the window's pixels
-//   plants     0 sparse (every 4th leaf, glint and pebble), 1 medium (every 2nd), 2 dense
+//   plants     0 sparse (every 4th leaf, glint and pebble), 1 medium (every 2nd), 2 dense; of these Medium keeps 3 of 4 leaves and Low every 2nd (gen.js)
 //   shadows    0 low (1024), 1 medium (2048), 2 high (4096, and rocks cast them too)
 //   smoothing  0 off, 1 4x anti-aliasing
 //   rays       0 off, 1 low (12 steps), 2 high (34 steps)
 //   animal shadows  0 off, 1 few (the 8 creatures that matter most to the view), 2 all (24)
 //   surface    0 flat (a level sheet with a moving water texture), 1 waves (a simulated sea, waves.js); flat on Low
+//   frame rate 0 30 a second (Low), 1 60 (Medium), 2 as many as the screen shows (High); auto resolution aims for 30 with the first, else for 60
 let GS = []; try { GS = (localStorage.abyssalGfx || '').split(','); } catch {}
 if (bad) { GS = []; keep('abyssalGfx', ''); } // the last load crashed: back to the level's own settings
 const gset = (i, n, d) => (GS[i] !== undefined && GS[i] !== '' && +GS[i] >= 0 && +GS[i] < n ? +GS[i] : d);
-const gdef = (lv) => (lv > 1 ? [0, 0, 0, 0, 0, 0, 0, 0] : [2, 0, 2 - lv, 2 - lv, 1, 2, 2 - lv, 1]); // what a detail level picks: Low is the least of everything
-const GFX = gdef(LV).map((d, i) => gset(i, [3, 4, 3, 3, 2, 3, 3, 2][i], d));
+const gdef = (lv) => [2 - lv, 0, 2 - lv, 2 - lv, lv ? 0 : 1, 2 - lv, 2 - lv, lv > 1 ? 0 : 1, 2 - lv]; // what a detail level picks: Low the least of everything, Medium the middle (waves, no smoothing), High the most
+const GFX = gdef(LV).map((d, i) => gset(i, [3, 4, 3, 3, 2, 3, 3, 2, 3][i], d));
 const VIEWD = [80, 105, 135][GFX[0]], RESQ = [0, 0.5, 0.75, 1][GFX[1]];
 const THIN = 4 >> GFX[2], SHADOW = 1024 << GFX[3], AA = GFX[4] ? 4 : 1, WATER = LV > 1 ? 256 : 512, RAYN = [2, 12, 34][GFX[5]], CSN = [0, 8, 24][GFX[6]];
 // the simulated waves (waves.js): WC cascades of WN x WN samples (WN = 2 ^ WLOG), patches of WL metres, a sea that
@@ -59,9 +61,10 @@ const WN = 128, WLOG = 7, WC = 3, WL = [89, 17.3, 3.7], WLOOP = 600, WSPD = 0.6;
 //             down steeply at any hour, and the baked shadows and skylight stay true.
 //   colours   0 vivid (magenta carpets, turquoise and violet leaves), 1 natural (the greens, browns and reds of a sea,
 //             sand on level ground, thin algae, and warmer light on rock and sand)
+//   floating rocks  0 off, 1 on: the clusters of boulders that hang in the water (gen.js)
 let WS = []; try { WS = (localStorage.abyssalWorld || '').split(','); } catch {}
-const WORLD = [3, 4, 2].map((n, i) => (WS[i] !== undefined && WS[i] !== '' && +WS[i] >= 0 && +WS[i] < n ? +WS[i] | 0 : i < 2 ? 1 : 0));
-const POPK = [0.5, 1, 2][WORLD[0]], NAT = WORLD[2];
+const WORLD = [3, 4, 2, 2].map((n, i) => (WS[i] !== undefined && WS[i] !== '' && +WS[i] >= 0 && +WS[i] < n ? +WS[i] | 0 : i < 2 ? 1 : 0));
+const POPK = [0.5, 1, 2][WORLD[0]], NAT = WORLD[2], FLOAT = WORLD[3];
 const DAYQ = [
   { sun: '.98, .80, .58', sky: '.70, .80, .88', win: '.95, .86, .78', nat: '1.65, .70, .46', zen: '.20, .50, .98', hor: '1.05, .84, .68', cl: '1.25, 1.05, .9', cov: 0.34 },
   { sun: '1., 1., 1.', sky: '1., 1., 1.', win: '1., 1., 1.', nat: '1.7, .64, .36', zen: '.2, .75, 1.3', hor: '.6, 1.07, 1.3', cl: '1.35, 1.35, 1.3', cov: 0.3 },

@@ -360,7 +360,7 @@ fn caus(p: vec3f, d: f32) -> vec3f {
 fn caus2(p: vec3f, d: f32) -> f32 { return min(caus(p, d).g, 2.6); }` : `fn caus(p: vec3f, d: f32) -> vec3f {
   let w = unrep(cuv(p)); let q = w.xy;
   let o = vec2f(.004, .0025);
-  let a = vec3f(textureSample(tW, sR, q / 3.3 + o).r, textureSample(tW, sR, q / 3.3).r, textureSample(tW, sR, q / 3.3 - o).r);
+  ${LV > 1 ? 'let a = vec3f(textureSample(tW, sR, q / 3.3).r);' : 'let a = vec3f(textureSample(tW, sR, q / 3.3 + o).r, textureSample(tW, sR, q / 3.3).r, textureSample(tW, sR, q / 3.3 - o).r);'}
   let b = textureSample(tW, sR, turn(q) / 6.9 + .37).r;
   let c = min(pow(a, vec3f(2.3)) * 5. * (.45 + b * 1.3) * w.z, vec3f(4.));
   return mix(c, vec3f(.33), ss(35., 100., d));
@@ -433,13 +433,15 @@ fn tri(p: vec3f, n: vec3f, s: f32) -> TP {
   // texture already broke into blocks). The textures repeat, so the position is wrapped first: every 100 m for the
   // rock textures and every 1000 m for the large-scale ones - whole numbers of repeats for each scale used.
   let o1 = i.op - floor(i.op / 100.) * 100.; let o2 = i.op - floor(i.op / 1000.) * 1000.;
-  let A = tri(o1, on, .1 * ts); let B = tri(o1, on, .43 * ts); let C = tri(o1, on, 1.9 * ts); let F = tri(o1, on, 6.7 * ts); let fk = ss(10., 1.5, dist) * f32(mat <= 1);
-  let Wd = textureSample(tD, sR, vec2f(o2.x * .06, (o2.y + o2.z) * .7));
+  let A = tri(o1, on, .1 * ts); let B = tri(o1, on, .43 * ts); let C = tri(o1, on, 1.9 * ts);
+  // (Low leaves out what costs texture reads and hardly shows at its resolution: the finest rock detail up close, here,
+  // the colour fringes of the light pattern, and the reads only the fluke and the ship need are made for them alone)
+  ${LV > 1 ? 'let F = C; let fk = 0.;' : 'let F = tri(o1, on, 6.7 * ts); let fk = ss(10., 1.5, dist) * f32(mat <= 1);'}
+  ${LV > 1 ? 'let lw = log2(max(length(dpdx(i.op)), length(dpdy(i.op))) * 1024.);' : 'let Wd = textureSample(tD, sR, vec2f(o2.x * .06, (o2.y + o2.z) * .7));'}
   let big = textureSample(tD, sR, o2.xz * .013 + o2.y * .021).a;
   let big2 = textureSample(tD, sR, o2.zx * .031 + o2.y * .043 + .37).a;
   var sgro = 0.;
-  let sk = textureSample(tD, sR, vec2f((o2.x + o2.z) * .33, o2.y * .035));
-  let sk2 = textureSample(tD, sR, vec2f((o2.x - o2.z) * 1.1, o2.y * .11));
+  ${LV > 1 ? '' : 'let sk = textureSample(tD, sR, vec2f((o2.x + o2.z) * .33, o2.y * .035)); let sk2 = textureSample(tD, sR, vec2f((o2.x - o2.z) * 1.1, o2.y * .11));'}
   let gm = textureSampleLevel(tM, sC, i.wp.xz / ${SPAN}., 0.);
   let ca = caus(i.wp, dist);
   let hgt = A.h * .5 + B.h * .35 + C.h * .15;
@@ -470,10 +472,12 @@ ${NAT ? `      alb = mix(alb, vec3f(.44, .28, .11) * (.7 + .5 * B.h) * (.85 + .3
     }
   } else if (mat == 2) {
     // whale fluke: smooth pale stone with dark streaks running along its length
+    ${LV > 1 ? 'let sk = textureSampleLevel(tD, sR, vec2f((o2.x + o2.z) * .33, o2.y * .035), lw - 1.1); let sk2 = textureSampleLevel(tD, sR, vec2f((o2.x - o2.z) * 1.1, o2.y * .11), lw + .6);' : ''}
     alb = mix(vec3f(.42, .47, .48), vec3f(.10, .13, .15), ss(.40, .62, sk.a * .6 + sk2.b * .5)) * (.75 + .3 * B.h);
     alb = mix(alb, vec3f(.60, .64, .62), ss(.62, .75, sk2.a) * .5);
     gloss = .9; bump = .3;
   } else if (mat == 3) {
+    ${LV > 1 ? 'let Wd = textureSampleLevel(tD, sR, vec2f(o2.x * .06, (o2.y + o2.z) * .7), lw);' : ''}
     alb = mix(vec3f(.13, .085, .05), vec3f(.36, .25, .14), Wd.b) * (.6 + .5 * B.h);
     let pk = fract(atan2(i.op.z, 2. - i.op.y) * 7.);
     alb *= .35 + .65 * ss(0., .12, min(pk, 1. - pk));

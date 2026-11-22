@@ -1,7 +1,7 @@
 // ============================================================================
 // the endless world: tiles are generated around the camera, uploaded, drawn and dropped again as it moves on
 // ============================================================================
-// The world is a grid of 48 m tiles without end. A window of WIN x WIN of them, centred on the camera, is loaded.
+// The world is a grid of 48 m tiles without end. A window of LW x LW of them, centred on the camera, is loaded.
 // A tile's way in:
 //   1. the GPU computes its block of rock density (W_DENS), a few slices per frame
 //   2. a worker turns the density into the terrain mesh and everything that grows on it (gen.js)
@@ -9,11 +9,14 @@
 // Nothing of this blocks a frame for long: the frame loop only starts and collects the steps (pump()).
 // A tile's slot in the window is its coordinates modulo WIN, and the world textures (skylight volume, ground map,
 // shadow map) wrap around with the same period, so a tile always writes to the same place and nothing is ever moved.
+// Only LW x LW of the WIN x WIN slots are filled: as many tiles as the draw distance needs (quality.js), 6 x 6 at
+// 80 m, 7 x 7 at 105 m, all 8 x 8 at 135 m. The period stays WIN, so a slot and its place in the textures do not change.
 
 // ---------------------------------------------------------------- tiles
 // slots[s]: null, or { tx, tz, st: 0 waiting / 1 being generated / 2 loaded, ... } for the tile whose place that is
 const slots = new Array(WIN * WIN).fill(null), order = new Array(WIN * WIN).fill(null);
 let winX = 1e9, winZ = 1e9, nOrder = 0, nLoaded = 0, nWanted = 0, inflight = 0, coreVerts = 0;
+const LW = VIEWD > 105 ? WIN : VIEWD > 80 ? 7 : 6;
 const slotOf = (tx, tz) => (tx & (WIN - 1)) + WIN * (tz & (WIN - 1));
 const tileAt = (tx, tz) => { const t = slots[slotOf(tx, tz)]; return t && t.st === 2 && t.tx === tx && t.tz === tz ? t : null; };
 
@@ -26,11 +29,11 @@ function dropTile(t) {
 function moveWindow(x, z) {
   // it runs up to 20 m ahead of a swimming camera, so tiles ahead get a head start
   const lv = hypot(F[VX], F[VZ]), lead = lv > 1 ? min(20, lv * 1.5) / lv : 0;
-  const fx = (x + F[VX] * lead) / TW - WIN / 2, fz = (z + F[VZ] * lead) / TW - WIN / 2;
+  const fx = (x + F[VX] * lead) / TW - LW / 2, fz = (z + F[VZ] * lead) / TW - LW / 2;
   if (abs(fx - winX) <= 0.75 && abs(fz - winZ) <= 0.75) return;
   winX = round(fx); winZ = round(fz); nWanted = 0;
-  for (let s = 0; s < slots.length; s++) { const t = slots[s]; if (t && (t.tx < winX || t.tx >= winX + WIN || t.tz < winZ || t.tz >= winZ + WIN)) { dropTile(t); slots[s] = null; } }
-  for (let tz = winZ; tz < winZ + WIN; tz++) for (let tx = winX; tx < winX + WIN; tx++) {
+  for (let s = 0; s < slots.length; s++) { const t = slots[s]; if (t && (t.tx < winX || t.tx >= winX + LW || t.tz < winZ || t.tz >= winZ + LW)) { dropTile(t); slots[s] = null; } }
+  for (let tz = winZ; tz < winZ + LW; tz++) for (let tx = winX; tx < winX + LW; tx++) {
     const s = slotOf(tx, tz);
     if (!slots[s]) slots[s] = { tx, tz, st: 0, x0: tx * TW, z0: tz * TW, oy: tileOY(tx), ny: tileNY(tx), ylo: 0, yhi: 0, d2: 0, vis: false, vb: null, ib: null, leafB: null, solB: null, miscB: null };
     if (slots[s].st < 2) nWanted++;
@@ -40,7 +43,7 @@ function moveWindow(x, z) {
 // How far from (x, z) the loaded world reaches: to the nearest tile of the window that is not there yet, or to the
 // window's edge. The haze is drawn in to this distance (frame()), so a tile never appears in plain sight.
 function reach(x, z) {
-  let r = min(x - winX * TW, (winX + WIN) * TW - x, z - winZ * TW, (winZ + WIN) * TW - z);
+  let r = min(x - winX * TW, (winX + LW) * TW - x, z - winZ * TW, (winZ + LW) * TW - z);
   for (let s = 0; s < slots.length; s++) {
     const t = slots[s]; if (!t || t.st === 2) continue;
     const dx = max(t.x0 - x, x - t.x0 - TW, 0), dz = max(t.z0 - z, z - t.z0 - TW, 0), d = hypot(dx, dz);
@@ -106,7 +109,7 @@ function startWorkers(POSES, flyPts) {
   const n = max(1, min(3, (navigator.hardwareConcurrency || 4) - 2));
   for (let i = 0; i < n; i++) {
     const w = { w: new Worker(url), t: null };
-    w.w.postMessage({ init: { LV, THIN, POSES, flyPts } });
+    w.w.postMessage({ init: { LV, THIN, FLOAT, POSES, flyPts } });
     w.w.onmessage = (e) => { const t = w.t; w.t = null; inflight--; if (t.st === 1) install(t, e.data); if (ready.length) { const r = ready.shift(); give(w, r.t, r.D); } };
     w.w.onerror = (e) => { console.error('tile worker: ' + e.message); };
     workers.push(w);
@@ -149,7 +152,7 @@ function pump(fast) {
     while (job) densSlab();
   }
   if (shadowAll === 1 && !nWanted) { shadowFull(); shadowAll = 2; }
-  else if (shadowQ.length) { const t = shadowQ.shift(); if (t.st === 2) shadowTile(t); }
+  else if (shadowQ.length) shadowNext();
 }
 
 // ---------------------------------------------------------------- shadows
@@ -199,9 +202,34 @@ function shadowRect(x0, x1, y0, y1, z0, z1, tx0, tx1, tz0, tz1) {
     Q.submit([e.finish()]);
   }
 }
-const shadowTile = (t) => shadowRect(t.x0 - SHM, t.x0 + TW + SHM, t.oy - 2, min(t.oy + t.ny * VS + 2, 4), t.z0 - SHM, t.z0 + TW + SHM, t.tx - 1, t.tx + 1, t.tz - 1, t.tz + 1);
-const shadowFull = () => { let lo = 1e9, hi = -1e9; for (let tx = winX; tx < winX + WIN; tx++) { lo = min(lo, tileOY(tx)); hi = max(hi, tileOY(tx) + tileNY(tx) * VS); } shadowFullY(lo - 2, min(hi + 2, 4)); };
-const shadowFullY = (y0, y1) => shadowRect(winX * TW - SHM, (winX + WIN) * TW + SHM, y0, y1, winZ * TW - SHM, (winZ + WIN) * TW + SHM, winX, winX + WIN - 1, winZ, winZ + WIN - 1);
+// redraws the shadows of the tiles tx0..tx1, tz0..tz1 (one, or a line of them with t's band of heights): their own
+// rectangle of the map, from themselves and the tiles around them, whose shadows fall into it too
+const shadowTiles = (t, tx0, tx1, tz0, tz1) => shadowRect(tx0 * TW - SHM, (tx1 + 1) * TW + SHM, t.oy - 2, min(t.oy + t.ny * VS + 2, 4), tz0 * TW - SHM, (tz1 + 1) * TW + SHM, tx0 - 1, tx1 + 1, tz0 - 1, tz1 + 1);
+// The shadows of the tiles that have just come in, one rectangle a frame. A tile within the draw distance gets its
+// own at once. The far ones (a row at the window's edge) wait until all of them are in and are then drawn as lines of
+// up to 4 neighbours of one height: a line redraws far fewer tiles than its tiles would one by one.
+// (Not the tall tiles of the rift: their rectangles are long and overlap, so they keep the order they come in.)
+function shadowNext() {
+  let t = null;
+  for (let i = 0; i < shadowQ.length; i++) {
+    const q = shadowQ[i]; if (q.st !== 2) { shadowQ.splice(i--, 1); continue; }
+    if (!t && (!nWanted || q.ny > NY || hypot(max(q.x0 - F[CX], F[CX] - q.x0 - TW, 0), max(q.z0 - F[CZ], F[CZ] - q.z0 - TW, 0)) < VIEWD)) t = q;
+  }
+  if (!t) return;
+  // the longer line through t of waiting tiles, along x or along z: from a to b tiles off t
+  const at = (dx, dz) => shadowQ.find((q) => q.tx === t.tx + dx && q.tz === t.tz + dz && q.oy === t.oy && q.ny === t.ny && (q === t || t.ny === NY));
+  let a = 0, b = 0, z = 0;
+  for (let k = 0; k < 2; k++) {
+    let lo = 0, hi = 0;
+    while (hi - lo < 3 && at(k ? 0 : hi + 1, k ? hi + 1 : 0)) hi++;
+    while (hi - lo < 3 && at(k ? 0 : lo - 1, k ? lo - 1 : 0)) lo--;
+    if (hi - lo > b - a) { a = lo; b = hi; z = k; }
+  }
+  for (let i = a; i <= b; i++) shadowQ.splice(shadowQ.indexOf(at(z ? 0 : i, z ? i : 0)), 1);
+  shadowTiles(t, t.tx + (z ? 0 : a), t.tx + (z ? 0 : b), t.tz + (z ? a : 0), t.tz + (z ? b : 0));
+}
+const shadowFull = () => { let lo = 1e9, hi = -1e9; for (let tx = winX; tx < winX + LW; tx++) { lo = min(lo, tileOY(tx)); hi = max(hi, tileOY(tx) + tileNY(tx) * VS); } shadowFullY(lo - 2, min(hi + 2, 4)); };
+const shadowFullY = (y0, y1) => shadowRect(winX * TW - SHM, (winX + LW) * TW + SHM, y0, y1, winZ * TW - SHM, (winZ + LW) * TW + SHM, winX, winX + LW - 1, winZ, winZ + LW - 1);
 
 // ---------------------------------------------------------------- drawing
 // Sorts the loaded tiles nearest first and marks the ones whose box is in view.

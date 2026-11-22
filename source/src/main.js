@@ -102,7 +102,7 @@ const MANTA = meshes[12], FISH = meshes[13];
 // drifting particles
 rseed(15);
 const snow = new Float32Array(9000 * 4); for (let i = 0; i < snow.length; i++) snow[i] = rnd();
-const ibSnowB = buf(snow, BU.VERTEX), nSnow = LV > 1 ? 3000 : 9000; // Low draws the first third
+const ibSnowB = buf(snow, BU.VERTEX), nSnow = 9000 - LV * 3000; // Medium draws the first two thirds, Low the first third
 
 // ---------------------------------------------------------------- the first window of the world
 await say('Sculpting the seabed…', 0.2, 600);
@@ -133,7 +133,8 @@ lookAt(...POSES[0]);
 // the world there, not at home, with the view as it was (back: the camera's place and angles, then the creature's
 // species, place, angles and health), and the dive puts the creature back. Key 1 is the way home.
 const keepAt = () => keep('abyssalAt', JSON.stringify([F[CX], F[CY], F[CZ], F[YAW], F[PIT]].concat(me ? [me.s, me.x, me.y, me.z, me.yaw, me.pit, meHP] : [])));
-let back = null; try { back = JSON.parse(localStorage.abyssalAt); } catch {}
+const BENCH = /[?&]bench/.test(location.search); // the measuring run at the end of this file: always at home
+let back = null; try { back = BENCH || JSON.parse(localStorage.abyssalAt); } catch {}
 if (Array.isArray(back) && back.length > 4 && back.every(isFinite)) for (let i = 0; i < 5; i++) F[i] = back[i]; else back = null;
 moveWindow(F[CX], F[CZ]);
 {
@@ -168,7 +169,9 @@ const PIXMAX = 3840 * 2160, // auto never draws more than this (it was 2560 x 14
 let W = 0, H = 0, DW = 0, DH = 0, pix = RESQ ? 1e9 : +SV[1] || (LV > 1 ? 41e4 : mob ? 1280 * 720 : PIXMAX), det = DET0, dynN = 0, dynT = 0, dynG = 0, dynGN = 0, dynBad = 0, dynOk = 0, dynWait = 3, dynFast = 1;
 let passScene, passRays, passBlur, bgBlur, passPost, bgRays, bgPost, bloomPass = [], bloomBG = [], targets = [];
 const NB = LV > 1 ? 3 : 6; // levels of the bloom chain (Low: fewer, a tighter glow)
-let capT = 0; // Low: when the last frame was due (frame() keeps it to 60 a second)
+// the frame rate setting: FT a frame's time (0: every frame the screen shows), DK auto resolution's budget against 60 fps
+const FT = [1000 / 30, 1000 / 60, 0][GFX[8]], DK = GFX[8] ? 1 : 2;
+let capT = 0; // when the last frame was due (frame() keeps to FT)
 function resize() {
   DW = max(2, round(canvas.clientWidth * devicePixelRatio)); DH = max(2, round(canvas.clientHeight * devicePixelRatio));
   const s = RESQ || min(1, sqrt(pix / (DW * DH)));
@@ -226,7 +229,7 @@ if (hasTS) {
 // ---------------------------------------------------------------- frame
 let hud = false;
 let kf = 0, kb = 0, kl = 0, kr = 0, ku = 0, kd = 0, ks = 0, mdx = 0, mdy = 0, lkx = 0, lky = 0, l2x = 0, l2y = 0, hN = 0, hMax = 0, hMin = 1e9, hPer = 1e9, hLate = 0, hTot = 0, tId = -1, tN = 0, tx0 = 0, ty0 = 0, tx = 0, ty = 0;
-const TANH = 0.6, NEAR = 0.1, EXPO = 0.62; let RAYS = GFX[5] ? 0.54 : 0, HIDE = 0; // HIDE: dev.js can leave passes out (1 terrain, 2 solids, 4 mantas, 8 fish, 16 leaves, 32 surface)
+const TANH = 0.6, NEAR = 0.1, EXPO = 0.62; let RAYS = GFX[5] ? 0.54 : 0, HIDE = 0; // HIDE leaves parts out (dev.js, ?bench): 1 terrain, 2 solids, 4 mantas, 8 creatures and fish, 16 leaves, 32 surface, 64 particles, 128 light rays, 256 glow; 512 solids and 8192 leaves without their pixels, 1024 big rocks, 2048 chunks, 4096 sponges and corals
 const submitList = [null];
 function render() {
   // camera basis (right vector is horizontal)
@@ -265,7 +268,7 @@ function render() {
   // animated water texture + mips
   let r = e.beginRenderPass(waterPass[0]); r.setPipeline(pWater); r.setBindGroup(0, bgWater); r.draw(3); r.end();
   for (let i = 1; i < 5; i++) { r = e.beginRenderPass(waterPass[i]); r.setPipeline(pMip16); r.setBindGroup(0, waterBG[i - 1]); r.draw(3); r.end(); }
-  if (wave) { const c = e.beginComputePass(); wave.sim(c); c.end(); } // the simulated waves (waves.js)
+  if (wave && !(HIDE & 32)) { const c = e.beginComputePass(); wave.sim(c); c.end(); } // the simulated waves (waves.js)
   // scene
   r = e.beginRenderPass(passScene);
   r.setBindGroup(0, bg0);
@@ -273,52 +276,57 @@ function render() {
   r.setPipeline(pTerrain); r.setVertexBuffer(1, ibIdent);
   for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.ib && !(HIDE & 1)) { r.setVertexBuffer(0, t.vb); r.setIndexBuffer(t.ib, 'uint32'); drawPart(r, t, t.terr, 1.5, 1, 0, 0, 137 * det + 1); } }
   r.setPipeline(pSolid); r.setVertexBuffer(0, vbMesh); r.setIndexBuffer(ibMesh, 'uint32');
+  if (HIDE & 512) r.setScissorRect(0, 0, 1, 1);
+  const far2 = (137 * det + 16) ** 2; // a tile's big rocks are drawn as far as its sea floor is (and 15 m more: a floating cluster reaches out of its tile)
   for (let k = 0; k < nOrder; k++) {
     const t = order[k]; if (!t.solB || HIDE & 2) continue;
     r.setVertexBuffer(1, t.solB);
-    for (let i = 0; i < 12; i++) { const n = t.solids[i * 2 + 1]; if (n) r.drawIndexed(meshes[i].ib.length, n, meshes[i].i0, meshes[i].v0, t.solids[i * 2]); }
+    // (the fluke and the ship, 10 and 11, reach far out of their tile: always drawn)
+    for (let i = 0; i < 12; i++) { const n = t.solids[i * 2 + 1]; if (n && (i > 3 || t.d2 < far2) && !(HIDE & 1024)) r.drawIndexed(meshes[i].ib.length, n, meshes[i].i0, meshes[i].v0, t.solids[i * 2]); }
     if (!t.vis || t.d2 > 22500) continue;
-    for (let i = 0; i < NCHUNK; i++) {
+    for (let i = 0; i < NCHUNK && !(HIDE & 2048); i++) {
       const c = t.chunks[i], big = i > 2 && i < 6;
       drawPart(r, t, c, 3, meshes[14 + i], 0, 0, i > 5 ? 30 : big ? 40 : 96);
       if (big) drawPart(r, t, c, 3, meshes[20 + i], 0, 40, 150);
     }
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 6 && !(HIDE & 4096); i++) {
       const lod = i === 3 || i === 4;
       drawPart(r, t, t.props[i], 3, meshes[4 + i], 0, 0, lod ? 6 : 132);
       if (lod) drawPart(r, t, t.props[i], 3, meshes[18 + i], 0, 6, 132);
     }
   }
+  if (HIDE & 512) r.setScissorRect(0, 0, W, H);
   r.setPipeline(pManta);
   for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[7]; if (n && !(HIDE & 4)) { r.setVertexBuffer(1, t.miscB); r.drawIndexed(MANTA.ib.length, n, MANTA.i0, MANTA.v0, t.misc[6]); } }
-  botDraw(r, CRIT0);
+  if (!(HIDE & 8)) botDraw(r, CRIT0);
   r.setPipeline(pFish);
-  for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[5]; if (n && t.d2 < 32400) { r.setVertexBuffer(1, t.miscB); r.drawIndexed(FISH.ib.length, n, FISH.i0, FISH.v0, t.misc[4]); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[5]; if (n && t.d2 < 32400 && !(HIDE & 8)) { r.setVertexBuffer(1, t.miscB); r.drawIndexed(FISH.ib.length, n, FISH.i0, FISH.v0, t.misc[4]); } }
   // kelp and plants: 9-row blades up close, 5 rows mid-range, a decimated set far away
-  r.setPipeline(pLeaf);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 576) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 18, 0, 24); } }
+  r.setPipeline(pLeaf); if (HIDE & 8192) r.setScissorRect(0, 0, 1, 1);
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 576 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 18, 0, 24); } }
   r.setPipeline(pLeaf5);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 3364) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 10, 24, 58); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 3364 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.big, 5, false, 10, 24, 58); } }
   r.setPipeline(pLeafF);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 22500) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.bigF, 5, false, 6, 58, 150); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 22500 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.bigF, 5, false, 6, 58, 150); } }
   r.setPipeline(pLeafS);
-  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 4900) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.small, 1.5, false, 6, 0, 70); } }
+  for (let k = 0; k < nOrder; k++) { const t = order[k]; if (t.vis && t.leafB && t.d2 < 4900 && !(HIDE & 16)) { r.setVertexBuffer(0, t.leafB); drawPart(r, t, t.small, 1.5, false, 6, 0, 70); } }
+  if (HIDE & 8192) r.setScissorRect(0, 0, W, H);
   if (!(HIDE & 32)) { if (wave) { r.setPipeline(wave.pipe); r.setVertexBuffer(0, wave.vb); r.setIndexBuffer(wave.ib, 'uint16'); r.drawIndexed(wave.n); } else { r.setPipeline(pSurf); r.draw(4); } }
   r.setPipeline(pBack); r.draw(4);
   r.setPipeline(pBub);
-  for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[1]; if (n && t.d2 < 14400) { r.setVertexBuffer(0, t.miscB); r.draw(4, n, 0, t.misc[0]); } }
-  gurDraw(r);
+  for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[1]; if (n && t.d2 < 14400 && !(HIDE & 64)) { r.setVertexBuffer(0, t.miscB); r.draw(4, n, 0, t.misc[0]); } }
+  if (!(HIDE & 64)) gurDraw(r);
   r.setPipeline(pGl);
-  for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[3]; if (n && t.vis && t.d2 < 14400) { r.setVertexBuffer(0, t.miscB); r.draw(4, n, 0, t.misc[2]); } }
-  r.setPipeline(pSnow); r.setVertexBuffer(0, ibSnowB); r.draw(4, nSnow);
+  for (let k = 0; k < nOrder; k++) { const t = order[k], n = t.misc[3]; if (n && t.vis && t.d2 < 14400 && !(HIDE & 64)) { r.setVertexBuffer(0, t.miscB); r.draw(4, n, 0, t.misc[2]); } }
+  if (!(HIDE & 64)) { r.setPipeline(pSnow); r.setVertexBuffer(0, ibSnowB); r.draw(4, nSnow); }
   r.end();
   // light shafts (with Light rays off neither pass runs: the shafts' texture stays empty)
-  if (GFX[5]) {
+  if (GFX[5] && !(HIDE & 128)) {
     r = e.beginRenderPass(passRays); r.setPipeline(pRays); r.setBindGroup(0, bgRays); r.draw(3); r.end();
     r = e.beginRenderPass(passBlur); r.setPipeline(pRB); r.setBindGroup(0, bgBlur); r.draw(3); r.end();
   }
   // bloom
-  for (let i = 0; i < bloomPass.length; i++) {
+  for (let i = 0; i < bloomPass.length && !(HIDE & 256); i++) {
     r = e.beginRenderPass(bloomPass[i]); r.setPipeline(i === 0 ? pDown0 : i < NB ? pDown : pUp); r.setBindGroup(0, bloomBG[i]); r.draw(3); r.end();
   }
   // composite
@@ -360,20 +368,20 @@ function collide() {
 
 function frame(now) {
   if (!OFF) requestAnimationFrame(frame); // offscreen: dev.js steps the frames
-  // Low: at most 60 frames a second on a faster screen (a frame is skipped until 1/60 s, less 2 ms, after the last one was due)
-  if (LV > 1 && !OFF) { if (now - capT < 1000 / 60 - 2) return; capT = max(capT + 1000 / 60, now - 1000 / 60); }
+  // the frame rate setting (30 on Low, 60 on Medium): a frame is skipped until FT, less 2 ms, after the last one was due
+  if (FT && !OFF) { if (now - capT < FT - 2) return; capT = max(capT + FT, now - FT); }
   const dtr = now - F[LAST]; F[LAST] = now;
   let dt = dtr / 1000; if (dt > 0.1) dt = 0.1;
-  // Dynamic resolution for 60 fps: every second (0.4 s behind the menu, and until the first period at full pace) scale the load by k
+  // Dynamic resolution for 60 fps (30 with that frame rate chosen: DK doubles every limit): every second (0.4 s behind the menu, and until the first period at full pace) scale the load by k
   if (!RESQ && dtr < 1e3 && (dynT += dtr) > 0 && (dynN++, dynT > (menu || dynFast ? 400 : 1000))) {
     const a = dynT / dynN, g = dynGN ? dynG / dynGN : 0; let k = 1;
     // with GPU timing: keep it between 9.8 and 13.6 ms
-    if (g) { if (g > 13.6 || g < 9.8) k = 11.7 / g; }
+    if (g) { if (g > 13.6 * DK || g < 9.8 * DK) k = 11.7 * DK / g; }
     // without: slow for two periods in a row means fewer pixels, and twice as long before trying to go back up
     // (at the start one slow period is enough, so a visit does not begin with seconds of stutter)
-    else if (a > 17.6) { dynOk = 0; if (dynFast) k = 15 / a; else if (++dynBad > 1) { k = 15 / a; dynBad = 0; dynWait = min(dynWait * 2, 60); } }
+    else if (a > 17.6 * DK) { dynOk = 0; if (dynFast) k = 15 * DK / a; else if (++dynBad > 1) { k = 15 * DK / a; dynBad = 0; dynWait = min(dynWait * 2, 60); } }
     // at the display's rate there is no telling if there is room, so try a little more now and then
-    else { dynFast = dynBad = 0; if (a < 12.5) k = 15 / a; else if (++dynOk > dynWait) { k = 1.17; dynOk = 0; } }
+    else { dynFast = dynBad = 0; if (a < 12.5 * DK) k = 15 * DK / a; else if (++dynOk > dynWait) { k = 1.17; dynOk = 0; } }
     k = k < 0.5 ? 0.5 : k > 1.7 ? 1.7 : k; const top = min(PIXMAX, DW * DH), was = pix;
     if (!RESQ) { pix = min(pix, top) * k; pix = pix < PIXMIN ? PIXMIN : pix > top ? top : pix; }
     if (was !== pix) keep('abyssal', [LV, pix < top ? pix | 0 : '']); // nothing kept at full resolution
@@ -426,7 +434,7 @@ function frame(now) {
   if (hud) {
     hN++; if (dtr > hMax) hMax = dtr; if (dtr < hMin) hMin = dtr; if (dtr > hPer * 1.5) { hLate++; hTot++; }
     F[HUDT] += dtr / 1000;
-    if (F[HUDT] > 0.5) { info.textContent = `${(hN / F[HUDT]).toFixed(0)} fps  ·  worst frame ${hMax.toFixed(1)} ms  ·  late frames ${hLate} (total ${hTot})  ·  GPU ${F[GPU].toFixed(2)} ms  ·  ${W}x${H} (${W * 100 / DW | 0}%)  ·  x ${F[CX].toFixed(0)} z ${F[CZ].toFixed(0)}  ·  tiles ${nLoaded}/${WIN * WIN}`; F[HUDT] = 0; hPer = hMin; hN = 0; hMax = 0; hMin = 1e9; hLate = 0; }
+    if (F[HUDT] > 0.5) { info.textContent = `${(hN / F[HUDT]).toFixed(0)} fps  ·  worst frame ${hMax.toFixed(1)} ms  ·  late frames ${hLate} (total ${hTot})  ·  GPU ${F[GPU].toFixed(2)} ms  ·  ${W}x${H} (${W * 100 / DW | 0}%)  ·  x ${F[CX].toFixed(0)} z ${F[CZ].toFixed(0)}  ·  tiles ${nLoaded}/${LW * LW}`; F[HUDT] = 0; hPer = hMin; hN = 0; hMax = 0; hMin = 1e9; hLate = 0; }
   }
 }
 
@@ -554,14 +562,14 @@ const go = () => {
 };
 bDive.onclick = go; $('o').onclick = () => ui(true);
 // The graphics and the world panels. Their rows are one list of choices: detail level, water, the settings of GFX
-// (Surface, the last of them, is shown right under Detail),
-// then those of WORLD (creatures, time of day, colours).
+// (the last two of them are shown higher up: Surface right under Detail, Frame rate under Resolution),
+// then those of WORLD (creatures, time of day, colours, floating rocks).
 // Choices are only marked until the panels are left: the question asked then keeps them and reloads (they are compiled into the shaders and the
 // world's buffers). Picking a detail level marks the settings that level comes with; a dot on the Graphics and World
 // tabs says they hold choices not applied yet.
 {
   const yr = [...$('y').querySelectorAll('p')], wr = [...document.querySelectorAll('#yw p:not(.h)')];
-  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(2), yr[1], ...wr.slice(1)], G = 2 + GFX.length;
+  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], yr[2], yr[3], ...yr.slice(5), yr[1], yr[4], ...wr.slice(1)], G = 2 + GFX.length;
   const ch = (f) => pick.some((v, k) => v !== was[k] && f(k));
   const mark = () => {
     rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; }));
@@ -636,3 +644,29 @@ render(); await Q.onSubmittedWorkDone();
 setTimeout(keep, 15e3, 'abyssalLoad', ''); // the load counts as survived after 15 s of frames
 ui(true);
 if (!OFF) requestAnimationFrame((t) => { F[LAST] = t; requestAnimationFrame(frame); });
+
+// ---------------------------------------------------------------- ?bench: what a frame's time goes on
+// A minute at the home viewpoint with the menu away: the frame is timed whole, then with one part of the picture
+// left out at a time (HIDE), with all of them out, at a quarter of the pixels, and with a part's shapes drawn but none
+// of its pixels (which tells the cost of its triangles from the cost of shading them); all of it twice, so the two
+// columns show how far the numbers can be trusted. The table stays on screen.
+if (BENCH && !OFF) {
+  const run = frame, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  let n = 0, cpu = 0, gpu = 0;
+  frame = (now) => { const t = performance.now(), l = F[LAST]; run(now); if (F[LAST] !== l) { n++; cpu += performance.now() - t; gpu += F[GPU]; } dynT = -1 / 0; };
+  ui(false); hud = false; info.style.cssText = 'top:0;left:0;margin:0;padding:12px;background:#000c;color:#fff;font:14px/1.5 monospace;z-index:99;user-select:text;pointer-events:auto';
+  const rows = [['everything', 0], ['no sea floor', 1], ['no rocks, corals', 2], ['no plants', 16], ['no creatures, fish', 12], ['no surface', 32], ['no particles', 64], ['no light rays', 128], ['no glow', 256], ['none of these', 511], ['everything, 1/4 of the pixels', 0, 1], ['no rocks, corals, 1/4 of the pixels', 2, 1], ['rocks, corals: no pixels', 512], ['no big rocks', 1024], ['no small rocks', 2048], ['no sponges, corals', 4096], ['plants: no pixels', 8192]];
+  const ai = adapter.info || {}; let out = `Abyssal Infinite, frame parts  ·  ${ai.vendor || '?'} ${ai.architecture || ''} ${ai.description || ''}\nDetail ${['High', 'Medium', 'Low'][LV]}, settings ${GFX.join('')}, window ${DW}x${DH}\n`, base = 0;
+  await wait(4000); // (the resolution settles first; from here it is held)
+  const p0 = pix, p4 = W * H / 4, R = rows.map(() => [0, 0, 0, 0]), f = (v, w) => v.toFixed(1).padStart(w);
+  out += `drawn at ${W}x${H}${hasTS ? '' : '  ·  no GPU timer in this browser: only the fps column counts'}\n\n${'part left out'.padEnd(38)}GPU ms 1st   2nd   change   script ms   fps\n`;
+  for (let k = 0; k < 2; k++) for (let i = 0; i < rows.length; i++) {
+    const q = rows[i][2]; if (q) { if (RESQ) continue; pix = p4; resize(); }
+    HIDE = rows[i][1]; info.textContent = `Measuring ${k * rows.length + i + 1} of ${rows.length * 2}…`;
+    await wait(600); n = cpu = gpu = 0; await wait(1600);
+    R[i][k] = gpu / n; R[i][2] = cpu / n; R[i][3] = n / 1.6;
+    if (q) { pix = p0; resize(); }
+  }
+  R.forEach((r, i) => { if (!rows[i][2] || !RESQ) { const d = (r[0] + r[1] - R[0][0] - R[0][1]) / 2; out += `${rows[i][0].padEnd(38)}${f(r[0], 10)}${f(r[1], 6)}   ${(i ? (d > 0 ? '+' : '') + d.toFixed(1) : '').padStart(6)}   ${f(r[2], 9)}   ${r[3].toFixed(0).padStart(3)}\n`; } });
+  HIDE = 0; info.textContent = out + '\nDone. Send this table (a screenshot will do).';
+}
