@@ -181,13 +181,13 @@ The limits are set to match each other (`source/src/bots.js`, `server/src/sea.js
 
 The **Detail** row in the menu's **Graphics** panel picks the detail level; the current one is lit. Each level is the same world, built with less in it, and with fewer creatures around you (26, 20 or 14; the **Creatures** row of the World panel halves or doubles that):
 
-| Level | What it is | Proposed on a first visit for |
+| Level | What it is | Used before any level is chosen, on |
 |---|---|---|
 | **High** | The full scene | - |
 | **Medium** | Half of the leaves, sparkles and pebbles; small rocks, sponges and corals cast no shadows | Computers |
 | **Low** | Every graphics setting at its least: the 80 m draw distance, a quarter of the leaves, the smallest shadow map, no anti-aliasing, no light rays, no creature shadows; coarser rocks and corals, 480p to start with | Phones, and computers with 4 GB of memory or less |
 
-A first visit asks which level to build before anything is compiled: three buttons on the loading screen, the proposed one lit (`#z` in `source/template.html`, asked in `source/src/quality.js`). The answer is kept at once, so the question comes only that one time; later the level is changed in the menu. If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, world and sound settings for the next visit.
+A first visit asks which level to build before anything is compiled: three buttons on the loading screen, Low lit for everyone (`#z` in `source/template.html`, asked in `source/src/quality.js`). The answer is kept at once, so the question comes only that one time; later the level is changed in the menu. If loading crashes the tab, or the graphics driver gives up, the page starts again one level lower. Your browser remembers the level, the resolution the scene settled on, and your graphics, world and sound settings for the next visit.
 
 ## Graphics settings
 
@@ -202,7 +202,7 @@ page opens the sea is built there; key `1` takes you home. They are
 stored in `localStorage.abyssalGfx` (see `source/src/quality.js`).
 
 **Surface** chooses what the sea looks like from below. **Flat** is a level sheet whose
-ripples come from a moving water texture. **Waves** (the default at every level) runs a simulated sea on the GPU every frame and draws the
+ripples come from a moving water texture. **Waves** (the default on Medium and High) runs a simulated sea on the GPU every frame and draws the
 surface from it: an FFT ocean (a wind sea plus swell, three cascades of 128 x 128 samples over patches of 89, 17.3
 and 3.7 m; `WN`, `WC`, `WL`, `WLOOP` in `source/src/quality.js`) lifts a fan of rings around the camera and gives the
 slopes that bend the light (`source/src/waves.js`, `surfW` in `source/src/shaders.js`). The simulation is taken from

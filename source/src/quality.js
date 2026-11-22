@@ -12,12 +12,12 @@ try { SV = (localStorage.abyssal || '').split(','); bad = localStorage.abyssalLo
 LV = SV[0] ? +SV[0] : mob || mem <= 4 ? 2 : 1; // a first visit: Medium on a computer, Low on every phone (its memory says nothing of its graphics chip)
 if (bad && LV < 2) { SV = [++LV]; keep('abyssal', LV); }
 // A first visit asks which level to build, before anything is compiled: three buttons on the loading screen (#z in
-// template.html), the level picked above lit. The answer is kept at once, so the question comes that one time and the
+// template.html), Low lit for everyone. The answer is kept at once, so the question comes that one time and the
 // menu's Detail row takes over. (Not asked where there is nothing to build, nor of dev.html#offscreen's automation.)
 const z = document.getElementById('z'), zl = document.getElementById('l');
 if (!SV[0] && navigator.gpu && !/offscreen/.test(location.hash)) {
   const bs = [...z.querySelectorAll('button')];
-  bs[2 - LV].className = 'on'; zl.className = 'z'; bs[2 - LV].focus();
+  bs[0].className = 'on'; zl.className = 'z'; bs[0].focus();
   LV = await new Promise((ok) => bs.forEach((b, i) => (b.onclick = () => ok(2 - i))));
   keep('abyssal', LV);
 }
@@ -39,11 +39,11 @@ const WATERQ = [
 //   smoothing  0 off, 1 4x anti-aliasing
 //   rays       0 off, 1 low (12 steps), 2 high (34 steps)
 //   animal shadows  0 off, 1 few (the 8 creatures that matter most to the view), 2 all (24)
-//   surface    0 flat (a level sheet with a moving water texture), 1 waves (a simulated sea, waves.js); waves at every level
+//   surface    0 flat (a level sheet with a moving water texture), 1 waves (a simulated sea, waves.js); flat on Low
 let GS = []; try { GS = (localStorage.abyssalGfx || '').split(','); } catch {}
 if (bad) { GS = []; keep('abyssalGfx', ''); } // the last load crashed: back to the level's own settings
 const gset = (i, n, d) => (GS[i] !== undefined && GS[i] !== '' && +GS[i] >= 0 && +GS[i] < n ? +GS[i] : d);
-const gdef = (lv) => (lv > 1 ? [0, 0, 0, 0, 0, 0, 0, 1] : [2, 0, 2 - lv, 2 - lv, 1, 2, 2 - lv, 1]); // what a detail level picks: Low is the least of everything
+const gdef = (lv) => (lv > 1 ? [0, 0, 0, 0, 0, 0, 0, 0] : [2, 0, 2 - lv, 2 - lv, 1, 2, 2 - lv, 1]); // what a detail level picks: Low is the least of everything
 const GFX = gdef(LV).map((d, i) => gset(i, [3, 4, 3, 3, 2, 3, 3, 2][i], d));
 const VIEWD = [80, 105, 135][GFX[0]], RESQ = [0, 0.5, 0.75, 1][GFX[1]];
 const THIN = 4 >> GFX[2], SHADOW = 1024 << GFX[3], AA = GFX[4] ? 4 : 1, WATER = LV > 1 ? 256 : 512, RAYN = [2, 12, 34][GFX[5]], CSN = [0, 8, 24][GFX[6]];

@@ -99,7 +99,7 @@ see [`server/README.md`](server/README.md). A page opened from a file plays alon
 All in the menu, and remembered by your browser:
 
 - **Detail** (Low / Medium / High): how much grows in the world and how many creatures surround you. On a first visit the game asks which
-  level to start with (Medium is proposed on a computer, Low on a phone). If loading crashes the tab, the page starts again one level lower.
+  level to start with (Low is proposed). If loading crashes the tab, the page starts again one level lower.
 - **Graphics**: draw distance, resolution, plants, shadows, anti-aliasing, light rays, the surface (flat, or simulated
   waves). Applying them reloads the page.
 - **World**: the water (Lagoon, Clear or Crystal), how many creatures live around you (Few, Medium, Many; with Few,

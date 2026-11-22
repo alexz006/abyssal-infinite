@@ -548,14 +548,15 @@ const go = () => {
   if (!mob) capture();
 };
 bDive.onclick = go; $('o').onclick = () => ui(true);
-// The graphics and the world panels. Their rows are one list of choices: detail level, water, the settings of GFX,
+// The graphics and the world panels. Their rows are one list of choices: detail level, water, the settings of GFX
+// (Surface, the last of them, is shown right under Detail),
 // then those of WORLD (creatures, time of day, colours).
 // Choices are only marked until the panels are left: the question asked then keeps them and reloads (they are compiled into the shaders and the
 // world's buffers). Picking a detail level marks the settings that level comes with; a dot on the Graphics and World
 // tabs says they hold choices not applied yet.
 {
   const yr = [...$('y').querySelectorAll('p')], wr = [...document.querySelectorAll('#yw p:not(.h)')];
-  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(1), ...wr.slice(1)], G = 2 + GFX.length;
+  const was = [2 - LV, WQ, ...GFX, ...WORLD], pick = was.slice(), rows = [yr[0], wr[0], ...yr.slice(2), yr[1], ...wr.slice(1)], G = 2 + GFX.length;
   const ch = (f) => pick.some((v, k) => v !== was[k] && f(k));
   const mark = () => {
     rows.forEach((r, k) => r.querySelectorAll('button').forEach((b, i) => { b.className = i === pick[k] ? 'on' : ''; }));
