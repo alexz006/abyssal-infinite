@@ -63,7 +63,7 @@ const WN = 128, WLOG = 7, WC = 3, WL = [89, 17.3, 3.7], WLOOP = 600, WSPD = 0.6;
 //             sand on level ground, thin algae, and warmer light on rock and sand)
 //   floating rocks  0 off, 1 on: the clusters of boulders that hang in the water (gen.js)
 let WS = []; try { WS = (localStorage.abyssalWorld || '').split(','); } catch {}
-const WORLD = [3, 4, 2, 2].map((n, i) => (WS[i] !== undefined && WS[i] !== '' && +WS[i] >= 0 && +WS[i] < n ? +WS[i] | 0 : i < 2 ? 1 : 0));
+const WORLD = [3, 4, 2, 2].map((n, i) => (WS[i] !== undefined && WS[i] !== '' && +WS[i] >= 0 && +WS[i] < n ? +WS[i] | 0 : i < 3 ? 1 : 0));
 const POPK = [0.5, 1, 2][WORLD[0]], NAT = WORLD[2], FLOAT = WORLD[3];
 const DAYQ = [
   { sun: '.98, .80, .58', sky: '.70, .80, .88', win: '.95, .86, .78', nat: '1.65, .70, .46', zen: '.20, .50, .98', hor: '1.05, .84, .68', cl: '1.25, 1.05, .9', cov: 0.34 },
