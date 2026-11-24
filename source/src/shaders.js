@@ -328,9 +328,11 @@ fn shadow4(p: vec3f) -> f32 {
 }
 fn shadow9(p: vec3f) -> f32 {
   if (LOW) { return shadow1(p); }
-  let s = shUV(p); let e = 2.1 / ${SHADOW}.; var a = 0.;
-  for (var x = -1; x <= 1; x++) { for (var y = -1; y <= 1; y++) { a += textureSampleCompareLevel(tSh, sS, s.xy + vec2f(f32(x), f32(y)) * e, s.z); } }
-  return a / 9.;
+  // 4 x 4 taps one texel apart: each tap is already an average over a texel, so together they cover 4 x 4 texels
+  // evenly (taps further apart leave strips between them, and the edge of a leaf's shadow comes out as a lattice)
+  let s = shUV(p); let e = 1. / ${SHADOW}.; var a = 0.;
+  for (var x = 0; x < 4; x++) { for (var y = 0; y < 4; y++) { a += textureSampleCompareLevel(tSh, sS, s.xy + (vec2f(f32(x), f32(y)) - 1.5) * e, s.z); } }
+  return a / 16.;
 }
 fn cuv(p: vec3f) -> vec2f { return p.xz - g.sun.xz * (p.y / g.sun.y); }
 // The water texture repeats every few metres, which shows as a lattice on open sand and on the surface. unrep bends
@@ -446,11 +448,12 @@ fn tri(p: vec3f, n: vec3f, s: f32) -> TP {
   let big = textureSample(tD, sR, o2.xz * .013 + o2.y * .021).a;
   let big2 = textureSample(tD, sR, o2.zx * .031 + o2.y * .043 + .37).a;
   var sgro = 0.;
+${NAT ? '  let gw = max(fwidth(o1.x), fwidth(o1.z));' : ''}
   ${LV > 1 ? '' : 'let sk = textureSample(tD, sR, vec2f((o2.x + o2.z) * .33, o2.y * .035)); let sk2 = textureSample(tD, sR, vec2f((o2.x - o2.z) * 1.1, o2.y * .11));'}
   let gm = textureSampleLevel(tM, sC, i.wp.xz / ${SPAN}., 0.);
   let ca = caus(i.wp, dist);
   let hgt = A.h * .5 + B.h * .35 + C.h * .15;
-  var bump = 1.7; var gloss = .1; var alb = vec3f(0.); var emi = vec3f(0.); var vao = 1.; var flu = 0.;
+  var bump = 1.7; var gloss = .1; var alb = vec3f(0.); var emi = vec3f(0.); var vao = 1.; var flu = 0.; var sandK = 0.;
   let flt = ss(.72, .93, n0.y);
   if (mat <= 1) {
     // layered rock: grey / olive / brown beds, warm encrustation patches, algae on up-facing parts
@@ -467,15 +470,31 @@ fn tri(p: vec3f, n: vec3f, s: f32) -> TP {
     alb *= (.22 + 1.3 * hgt) * mix(1., .62 + .76 * F.h, fk);
     sgro = -ss(.14, .0, sf) * (1. - abs(on.y)) * 1.2;
     if (mat == 0) {
-${NAT ? `      alb = mix(alb, vec3f(.44, .28, .11) * (.7 + .5 * B.h) * (.85 + .3 * C.h), ss(.62, .92, n0.y) * ss(.30, .55, big * .6 + A.c * .5) * .85);
-` : ''}      alb = mix(alb, vec3f(.13, .15, .14) * (.55 + .6 * B.h), flt * gm.a * .7);
+${NAT ? `      // natural colours: level ground is sand, matt, with grains that show up close; in patches it is coarser and
+      // greyer, a gravel of dark and pale stones, and where the sediment lies it is darker and damp
+      sandK = ss(.6, .9, n0.y);
+      let grv = 1. - ss(.22, .5, big * .6 + A.c * .5);
+      let gq = floor(o1.xz * 350.); let grn = fract(sin(dot(gq, vec2f(12.9898, 78.233))) * 43758.5) * ss(.7, .3, gw * 350.); // (gone before a grain is smaller than a pixel)
+      var snd = mix(vec3f(.36, .29, .17), vec3f(.56, .47, .30), sat(F.c * .7 + C.c * .5 + big2 * .5 - .35)) * (.8 + .3 * B.h);
+      snd = mix(snd, vec3f(.27, .25, .21) * (.6 + .8 * C.h), grv * .7);
+      snd = mix(snd, mix(vec3f(.10, .10, .09), vec3f(.66, .62, .54), ss(.4, .6, B.c)), ss(mix(.60, .50, grv), mix(.68, .60, grv), F.h * .6 + C.h * .4) * .35);
+      let sq = floor(o1.xz * 70.); let sh = fract(sin(dot(sq, vec2f(41.31, 17.77))) * 24634.63);
+      snd = mix(snd, mix(vec3f(.09, .09, .08), vec3f(.70, .66, .58), step(.5, fract(sh * 57.))), step(mix(.95, .84, grv), sh) * ss(.2 + .25 * fract(sh * 13.), .12, length(fract(o1.xz * 70.) - .5)) * ss(16., 5., dist) * .75);
+      snd *= 1. + (grn - .5) * .5;
+      alb = mix(alb, snd, sandK);
+      alb = mix(alb, vec3f(.24, .21, .15) * (.7 + .5 * B.h), flt * gm.a * .45);
+      bump = mix(bump, .55, sandK); gloss = mix(gloss, .03, sandK);
+` : `      alb = mix(alb, vec3f(.13, .15, .14) * (.55 + .6 * B.h), flt * gm.a * .7);
+`}
       alb = mix(alb, vec3f(.40, .34, .23) * (.7 + .5 * B.h) * (.85 + .3 * C.h) * mix(.3, 1., sat(-i.wp.y / 22.)), ss(.55, .9, n0.y) * gm.g); // pale sand towards the shore
       let mg = flt * sat(gm.r * 1.5 - .45 + (B.c - .5) * 1.6) * ss(.35, .6, A.h) * ss(-34., -40., i.wp.y);
-      alb = mix(alb, vec3f(${NAT ? '.15, .07, .03' : '.20, .02, .12'}) * (.4 + .9 * B.h), mg * .8);
+      alb = mix(alb, vec3f(${NAT ? '.15, .07, .03' : '.20, .02, .12'}) * (.4 + .9 * B.h), mg * ${NAT ? '.45' : '.8'});
       flu = mg * .35;
       alb = mix(alb, alb * vec3f(${NAT ? '.9, 1., 1.1' : '.85, .8, 1.4'}) + vec3f(${NAT ? '.0, .01, .02' : '.015, .0, .05'}), gm.b * .8);
     }
-  } else if (mat == 2) {
+${NAT ? `    // natural colours: the pebbles are stones of their own, grey, sandy, pale and rust-brown
+    if (mat == 1 && i.m.z > 1.5 && i.m.z < 50.) { let ph = fract(sd * 9.7); alb = mix(alb, mix(mix(vec3f(.22, .21, .20), vec3f(.52, .47, .38), fract(ph * 5.)), vec3f(.26, .13, .07), step(.82, ph)) * (.45 + .9 * B.h), .7); bump = .9; }
+` : ''}  } else if (mat == 2) {
     // whale fluke: smooth pale stone with dark streaks running along its length
     ${LV > 1 ? 'let sk = textureSampleLevel(tD, sR, vec2f((o2.x + o2.z) * .33, o2.y * .035), lw - 1.1); let sk2 = textureSampleLevel(tD, sR, vec2f((o2.x - o2.z) * 1.1, o2.y * .11), lw + .6);' : ''}
     alb = mix(vec3f(.42, .47, .48), vec3f(.10, .13, .15), ss(.40, .62, sk.a * .6 + sk2.b * .5)) * (.75 + .3 * B.h);
@@ -503,11 +522,11 @@ ${NAT ? `      alb = mix(alb, vec3f(.44, .28, .11) * (.7 + .5 * B.h) * (.85 + .3
     alb = mix(alb, vec3f(1., .75, .6), ss(.8, 1., i.ao) * .35);
     emi = alb * .01; flu = .75; gloss = .25; bump = 1.5;
   }
-  let rip = select(0., flt * max(gm.a, gm.g) * cos((i.wp.x * .8 + i.wp.z * .35) * 5. + A.c * 9.) * .65, mat == 0);
+  let rip = select(0., flt * max(max(gm.a, gm.g), sandK * .6) * cos((i.wp.x * .8 + i.wp.z * .35) * 5. + A.c * 9.) * .65, mat == 0);
   let N = normalize(qrot(i.q, normalize(on + (A.n * .85 + B.n * .65 + C.n * .45 * ss(60. * g.res.y, 12. * g.res.y, dist) + F.n * .5 * fk) * bump + vec3f(.8, sgro, .35) * vec3f(rip, 1., rip))));
   let L = g.sun.xyz; let V = normalize(g.cam.xyz - i.wp);
   let v1 = vol(i.wp + n0 * 1.5); let v2 = vol(i.wp + n0 * 4.5);
-  let ao = (sat((v1.r - .5) * 8.) * .55 + sat((v2.r - .5) * 2.7) * .45) * vao * ss(.12, .6, hgt);
+  let ao = (sat((v1.r - .5) * 8.) * .55 + sat((v2.r - .5) * 2.7) * .45) * vao * ss(.12, .6, hgt + sandK * .4);
   let z = zone(i.wp);
   let E = sunE(i.wp.y, z) * shadow9(i.wp + n0 * .35) * critSh(i.wp);
   let ndl = sat(dot(N, L));
@@ -561,7 +580,8 @@ fn pal(h: f32) -> vec3f {
     case 4 { col = mix(vec3f(.30, .15, .02), vec3f(.42, .25, .04), s1); pr = vec4f(.2, 1., .1, 0.); spc = vec3f(1., .85, .5); shp = vec2f(.5, .4); wav = 1.8; }
     case 5 { col = mix(vec3f(${NAT ? '.40, .10, .05' : '.85, .05, .40'}), vec3f(${NAT ? '.26, .20, .05' : '.60, .10, .80'}), step(.7, s1)); col = mix(col, vec3f(${NAT ? '.55, .20, .07' : '.95, .25, .55'}), step(.75, s2)); pr = vec4f(.22, .8, 0., ${NAT ? '.06' : '.30'}); spc = vec3f(${NAT ? '1., .7, .4' : '1., .35, .8'}); shp = vec2f(.6, .6); fls = 2.; }
     case 6 { col = mix(vec3f(.80, .16, .16), vec3f(${NAT ? '.84, .36, .20' : '.92, .36, .42'}), s1); pr = vec4f(.06, 1., 0., .10); spc = vec3f(1., .5, .5); shp = vec2f(.4, .3); wav = 2.; }
-    default { col = mix(vec3f(${NAT ? '.06, .26, .10' : '.05, .40, .36'}), vec3f(${NAT ? '.15, .37, .14' : '.10, .52, .58'}), s1); pr = vec4f(.1, .9, .2, .04); spc = vec3f(${NAT ? '.5, 1., .6' : '.3, 1., .9'}); shp = vec2f(.6, .5); }
+${NAT ? `    case 8 { col = mix(vec3f(.07, .30, .05), vec3f(.20, .44, .08), s1); col = mix(col, vec3f(.30, .34, .08), step(.8, s2)); pr = vec4f(0., 1., 0., 0.); spc = vec3f(.6, 1., .5); shp = vec2f(.35, .25); wav = 1.6; }
+` : ''}    default { col = mix(vec3f(${NAT ? '.06, .26, .10' : '.05, .40, .36'}), vec3f(${NAT ? '.15, .37, .14' : '.10, .52, .58'}), s1); pr = vec4f(.1, .9, .2, .04); spc = vec3f(${NAT ? '.5, 1., .6' : '.3, 1., .9'}); shp = vec2f(.6, .5); }
   }
   pr.x = step(hs(s1 * 91.7 + s2 * 37.1 + i.b.x), pr.x);
   let k = (i.c.w - .3) * 2.0 + sin(t * (.8 + s1) * fls + s2 * 40. + hA * .25) * .10 * fls;

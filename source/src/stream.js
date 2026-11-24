@@ -109,7 +109,7 @@ function startWorkers(POSES, flyPts) {
   const n = max(1, min(3, (navigator.hardwareConcurrency || 4) - 2));
   for (let i = 0; i < n; i++) {
     const w = { w: new Worker(url), t: null };
-    w.w.postMessage({ init: { LV, THIN, FLOAT, POSES, flyPts } });
+    w.w.postMessage({ init: { LV, THIN, FLOAT, NAT, POSES, flyPts } });
     w.w.onmessage = (e) => { const t = w.t; w.t = null; inflight--; if (t.st === 1) install(t, e.data); if (ready.length) { const r = ready.shift(); give(w, r.t, r.D); } };
     w.w.onerror = (e) => { console.error('tile worker: ' + e.message); };
     workers.push(w);

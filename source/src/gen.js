@@ -6,7 +6,7 @@
 // choice is seeded from where it happens (the tile, or the 2.3 m cell a kelp column stands in): leaving and coming
 // back builds the same place again.
 
-let LV = 0, THIN = 1, FLOAT = 0, POSES = [], flyPts = [];
+let LV = 0, THIN = 1, FLOAT = 0, NAT = 0, POSES = [], flyPts = [];
 // The original spread a fixed number of tries over all the terrain vertices of its one world (about NVW of them).
 // A tile gets the same number of tries per vertex.
 const NVW = 700000;
@@ -223,6 +223,7 @@ function genTile(tx, tz, D, OY, ny) {
   }
 
   // --- clusters of ribbon leaves on the ground
+  const meadow = (x, z) => sstep(0.5, 0.62, fbm(x * 0.05, 21, z * 0.05, 2)); // where the sea grass of the natural colours grows
   const cluster = (x, y, z, n, type, lmin, lmax, wmin, wmax, tmax, sway) => {
     for (let i = 0; i < n; i++) {
       const a = rnd() * TAU, r = rnd() * 0.5, L = rr(lmin, lmax);
@@ -244,7 +245,7 @@ function genTile(tx, tz, D, OY, ny) {
       } else if (ny > -0.2 && ny < 0.8 && u < 0.07) { // wall tufts
         const yaw = atan2(T.wn[k + 2], T.wn[k]), n = 5 + rnd() * 7 | 0;
         for (let j = 0; j < n; j++) leaf(big, x, y, z, rr(0.5, 1.4), yaw + rr(-0.9, 0.9), rr(0.3, 1.1), rr(0.06, 0.12), 0.5, zp > 0.4 && rnd() < 0.6 ? 3 : 0, rnd(), rnd(), rr(0.2, 0.6));
-      }
+      } else if (NAT && ny > 0.8 && u > 0.985 && meadow(x, z) > 0.3) cluster(x, y, z, 4 + rnd() * 6 | 0, 8, 1.6, 3.6, 0.1, 0.16, 0.22, 2.2); // (natural colours: tall green ribbons in the sea grass)
     }
     // --- ground cover: dense carpets of small tufts in the magenta patches (45 tries per square metre of a patch)
     seedAt(tx, tz, 4);
@@ -271,6 +272,7 @@ function genTile(tx, tz, D, OY, ny) {
       const m = magAt(x, z) * (1 - 0.85 * pl), zp = max(zoneP(x, z), 0.7 * sk) * (1 - pl), u = rnd();
       if (m > 0.3 && u < m * 0.9) for (let j = 0; j < 4; j++) leaf(small, x + rr(-0.1, 0.1), y - 0.05, z + rr(-0.1, 0.1), rr(0.12, 0.34), rnd() * TAU, rr(0.05, 0.75), rr(0.04, 0.08), 0, 5, rnd(), rnd(), rr(0.3, 0.7));
       else if (u < m * 0.9 + 0.5 * max(zp, hot(x, z)) * sstep(0.42, 0.6, fbm(x * 0.09, 9, z * 0.09, 2))) for (let j = 0; j < 3; j++) leaf(small, x + rr(-0.1, 0.1), y - 0.05, z + rr(-0.1, 0.1), rr(0.25, 0.7), rnd() * TAU, rr(0.1, 0.8), rr(0.05, 0.1), 0, 7, rnd(), rnd(), rr(0.3, 0.8));
+      else if (NAT && u > 0.9 && rnd() < meadow(x, z)) for (let j = 0; j < 3; j++) leaf(small, x + rr(-0.12, 0.12), y - 0.05, z + rr(-0.12, 0.12), rr(0.3, 0.9), rnd() * TAU, rr(0.03, 0.3), rr(0.035, 0.06), 0, 8, rnd(), rnd(), rr(0.2, 0.5)); // (natural colours: meadows of sea grass on the sand)
     }
   }
 
@@ -342,7 +344,7 @@ function genTile(tx, tz, D, OY, ny) {
     }
     seedAt(tx, tz, 11);
     // pebbles and rubble on the sea floor: sparse on the sand; on the plain they are nodules, lying in fields
-    for (let i = tries(170000 * (1 - 0.8 * sk) * (1 + 1.2 * pl)); i > 0; i--) {
+    for (let i = tries(170000 * (1 - 0.8 * sk) * (1 + 1.2 * pl) * (NAT ? 1.5 : 1)); i > 0; i--) {
       const k = pickV(), x = T.wp[k] + rr(-0.4, 0.4), z = T.wp[k + 2] + rr(-0.4, 0.4), y = T.wp[k + 1];
       if (T.wn[k + 1] < 0.8 || nearFly(x, y, z, 1.3)) continue;
       if (pl > 0 && rnd() < pl * (1 - sstep(0.45, 0.6, fbm(x * 0.012, 33, z * 0.012, 2)))) continue;
@@ -523,10 +525,10 @@ function genTile(tx, tz, D, OY, ny) {
 }
 
 // ---------------------------------------------------------------- worker protocol
-// { init: {LV, THIN, FLOAT, POSES, flyPts} } once, then { tx, tz, oy, ny, D: Float32Array } per tile -> the tile, its buffers transferred
+// { init: {LV, THIN, FLOAT, NAT, POSES, flyPts} } once, then { tx, tz, oy, ny, D: Float32Array } per tile -> the tile, its buffers transferred
 onmessage = (e) => {
   const m = e.data;
-  if (m.init) { LV = m.init.LV; THIN = m.init.THIN; FLOAT = m.init.FLOAT; POSES = m.init.POSES; flyPts = m.init.flyPts; handColumns(); return; }
+  if (m.init) { LV = m.init.LV; THIN = m.init.THIN; FLOAT = m.init.FLOAT; NAT = m.init.NAT; POSES = m.init.POSES; flyPts = m.init.flyPts; handColumns(); return; }
   const t = genTile(m.tx, m.tz, m.D, m.oy, m.ny);
   postMessage(t, [t.terr.vb, t.terr.ib.buffer, t.leaf.buf, t.sol.buf.buffer, t.misc.buf.buffer, t.vol.buffer, t.gm.buffer, t.CI.buffer, t.CG.buffer]);
 };
